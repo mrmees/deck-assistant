@@ -10,7 +10,8 @@
         "start": "streamdeck dev",
         "pack": "streamdeck pack com.homeassistant.streamdeck.sdPlugin",
         "lint": "eslint src --ext .ts",
-        "test": "jest"
+        "test": "jest",
+        "generate-icons": "npx ts-node scripts/generate-icons.ts"
     },
     "keywords": [
         "streamdeck",
