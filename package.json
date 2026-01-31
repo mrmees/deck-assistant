@@ -1,5 +1,5 @@
 {
-    "name": "homeassistant-streamdeck",
+    "name": "deck-assistant",
     "version": "1.0.0",
     "description": "Control Home Assistant entities from Stream Deck",
     "main": "src/plugin.ts",
@@ -8,7 +8,7 @@
         "build": "rollup -c",
         "watch": "rollup -c --watch",
         "start": "streamdeck dev",
-        "pack": "streamdeck pack com.homeassistant.streamdeck.sdPlugin",
+        "pack": "streamdeck pack com.deckassistant.sdPlugin",
         "lint": "eslint src --ext .ts",
         "test": "jest",
         "generate-icons": "npx ts-node scripts/generate-icons.ts"
@@ -36,7 +36,6 @@
     "dependencies": {
         "@elgato/streamdeck": "^1.0.0",
         "home-assistant-js-websocket": "^9.6.0",
-        "sharp": "^0.34.5",
         "ws": "^8.19.0"
     }
 }

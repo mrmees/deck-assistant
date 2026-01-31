@@ -32,7 +32,7 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
   /**
    * The UUID from the manifest that identifies this action
    */
-  override readonly manifestId = "com.homeassistant.streamdeck.entity-button";
+  override readonly manifestId = "com.deckassistant.entity-button";
 
   /**
    * Called when the action appears on the Stream Deck
@@ -539,30 +539,61 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
     const entities = haConnection.getAllEntities();
     const areas = haConnection.getAreas();
     const entityRegistry = haConnection.getEntityRegistry();
+    const deviceRegistry = haConnection.getDeviceRegistry();
 
-    // Build entity list with area information
+    // Build device map for quick lookup
+    const deviceMap = new Map(deviceRegistry.map((d) => [d.id, d]));
+
+    // Build entity list with area and device information
     const entityList = Object.values(entities).map((entity) => {
       const registryEntry = entityRegistry.find((e) => e.entity_id === entity.entity_id);
-      const area = registryEntry?.area_id
-        ? areas.find((a) => a.area_id === registryEntry.area_id)
-        : undefined;
+      const deviceId = registryEntry?.device_id;
+      const device = deviceId ? deviceMap.get(deviceId) : undefined;
+
+      // Get area_id - first check entity directly, then check its device
+      let areaId = registryEntry?.area_id;
+      if (!areaId && device?.area_id) {
+        areaId = device.area_id;
+      }
+
+      const area = areaId ? areas.find((a) => a.area_id === areaId) : undefined;
 
       return {
         entity_id: entity.entity_id,
         friendly_name: entity.attributes.friendly_name || entity.entity_id,
         state: entity.state,
         domain: entity.entity_id.split(".")[0],
-        area_id: registryEntry?.area_id,
-        area_name: area?.name,
+        area_id: areaId || null,
+        area_name: area?.name || null,
+        device_id: deviceId || null,
+        device_name: device?.name || null,
       };
     });
 
     // Sort entities by friendly name
     entityList.sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
 
+    // Build device list with area info
+    const deviceList = deviceRegistry.map((device) => {
+      const area = device.area_id ? areas.find((a) => a.area_id === device.area_id) : undefined;
+      // Count entities for this device
+      const entityCount = entityList.filter((e) => e.device_id === device.id).length;
+      return {
+        id: device.id,
+        name: device.name,
+        area_id: device.area_id,
+        area_name: area?.name,
+        entity_count: entityCount,
+      };
+    }).filter((d) => d.entity_count > 0); // Only include devices with entities
+
+    // Sort devices by name
+    deviceList.sort((a, b) => a.name.localeCompare(b.name));
+
     await streamDeck.ui.current?.sendToPropertyInspector({
       event: "entities",
       entities: entityList,
+      devices: deviceList,
       areas: areas.map((a) => ({ area_id: a.area_id, name: a.name })),
     });
   }

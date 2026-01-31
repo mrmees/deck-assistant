@@ -1,5 +1,6 @@
 import streamDeck, { LogLevel } from "@elgato/streamdeck";
 import { EntityButtonAction } from "./actions/entity-button.js";
+import { SettingsAction } from "./actions/settings.js";
 import { haConnection } from "./homeassistant/connection.js";
 
 // Set logger level to DEBUG
@@ -57,6 +58,7 @@ haConnection.subscribeToConnection((state) => {
 
 // Register actions
 streamDeck.actions.registerAction(new EntityButtonAction());
+streamDeck.actions.registerAction(new SettingsAction());
 
 // Listen for global settings and connect to HA
 streamDeck.settings.onDidReceiveGlobalSettings<{

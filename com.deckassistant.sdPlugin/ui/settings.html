@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Deck Assistant - Settings</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="section">
+        <div class="section-title">Home Assistant Connection</div>
+
+        <div class="connection-status">
+            <span id="status-indicator" class="status-dot disconnected"></span>
+            <span id="status-text">Disconnected</span>
+        </div>
+
+        <div class="field">
+            <label for="ha-url">Home Assistant URL</label>
+            <input type="text" id="ha-url" placeholder="http://192.168.1.254:8123">
+        </div>
+
+        <div class="field">
+            <label for="ha-token">Access Token</label>
+            <input type="password" id="ha-token" placeholder="Long-lived access token">
+        </div>
+
+        <div class="field button-row">
+            <button id="connect-btn" class="btn-primary">Connect</button>
+            <button id="disconnect-btn" class="btn-secondary" style="display: none;">Disconnect</button>
+        </div>
+
+        <div id="connection-error" class="error-message"></div>
+
+        <div class="help-text">
+            <p><strong>How to get an access token:</strong></p>
+            <ol>
+                <li>Open Home Assistant</li>
+                <li>Click your profile (bottom left)</li>
+                <li>Scroll to "Long-Lived Access Tokens"</li>
+                <li>Click "Create Token"</li>
+                <li>Copy and paste the token above</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Display Options</div>
+
+        <div class="field">
+            <label class="checkbox-label">
+                <input type="checkbox" id="disable-sd-titles">
+                <span>Don't use Stream Deck titles</span>
+            </label>
+            <div class="help-text-inline">
+                Hides title options in Entity Button. Use when rendering titles on the icon itself.
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">About</div>
+        <div class="help-text">
+            <p><strong>Deck Assistant</strong> v0.1.0</p>
+            <p>Control Home Assistant entities from your Stream Deck.</p>
+            <p>Add "Entity Button" actions to control lights, switches, sensors, and more.</p>
+        </div>
+    </div>
+
+    <script src="js/settings-pi.js"></script>
+</body>
+</html>

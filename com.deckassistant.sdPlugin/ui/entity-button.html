@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Deck Assistant - Entity Button</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Not Connected Message -->
+    <div id="not-connected" class="section">
+        <div class="section-title">Not Connected</div>
+        <div class="help-text">
+            <p>Home Assistant is not connected.</p>
+            <p>Add a <strong>Settings</strong> button to your Stream Deck to configure the connection.</p>
+        </div>
+    </div>
+
+    <!-- Main Content (shown when connected) -->
+    <div id="main-content" style="display: none;">
+        <!-- Tab Navigation -->
+        <div class="tab-bar">
+            <button type="button" class="tab-button active" data-tab="entity">Entity</button>
+            <button type="button" class="tab-button" data-tab="appearance">Appearance</button>
+        </div>
+
+        <!-- Entity Tab -->
+        <div id="tab-entity" class="tab-content active">
+            <div class="connection-status">
+                <span id="status-indicator" class="status-dot connected"></span>
+                <span id="status-text">Connected</span>
+            </div>
+
+            <!-- Search row with filter toggle -->
+            <div class="search-row">
+                <input type="text" id="search-filter" placeholder="Search entities...">
+                <button type="button" id="filter-toggle" class="filter-toggle" title="Show filters">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/>
+                    </svg>
+                    <span id="filter-badge" class="filter-badge" style="display: none;"></span>
+                </button>
+            </div>
+
+            <!-- Collapsible filters -->
+            <div id="filter-section" class="filter-section collapsed">
+                <div class="filter-row">
+                    <div class="filter-field">
+                        <label for="area-filter">Area</label>
+                        <select id="area-filter">
+                            <option value="">All</option>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label for="domain-filter">Type</label>
+                        <select id="domain-filter">
+                            <option value="">All</option>
+                            <option value="light">Light</option>
+                            <option value="switch">Switch</option>
+                            <option value="sensor">Sensor</option>
+                            <option value="binary_sensor">Binary</option>
+                            <option value="climate">Climate</option>
+                            <option value="cover">Cover</option>
+                            <option value="media_player">Media</option>
+                            <option value="scene">Scene</option>
+                            <option value="script">Script</option>
+                            <option value="lock">Lock</option>
+                            <option value="fan">Fan</option>
+                            <option value="automation">Auto</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="button" id="clear-filters" class="clear-filters">Clear filters</button>
+            </div>
+
+            <!-- Active filter chips -->
+            <div id="active-filters" class="active-filters" style="display: none;"></div>
+
+            <div class="field">
+                <label for="device-select">Device <span id="device-count" class="count-badge">(0)</span></label>
+                <select id="device-select">
+                    <option value="">Select a device...</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="entity-select">Entity <span id="entity-count" class="count-badge">(0)</span></label>
+                <select id="entity-select">
+                    <option value="">Select an entity...</option>
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="action-select">Action</label>
+                <select id="action-select">
+                    <option value="toggle">Toggle</option>
+                    <option value="turn_on">Turn On</option>
+                    <option value="turn_off">Turn Off</option>
+                    <option value="none">No Action</option>
+                    <option value="call_service">Custom Service</option>
+                </select>
+            </div>
+
+            <!-- Custom Service Call Section -->
+            <div id="custom-service-section" class="subsection" style="display: none;">
+                <div class="field">
+                    <label for="service-domain">Domain</label>
+                    <input type="text" id="service-domain" placeholder="light">
+                </div>
+                <div class="field">
+                    <label for="service-name">Service</label>
+                    <input type="text" id="service-name" placeholder="toggle">
+                </div>
+                <div class="field">
+                    <label for="service-data">Data (JSON)</label>
+                    <textarea id="service-data" rows="2" placeholder='{"brightness": 255}'></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Appearance Tab -->
+        <div id="tab-appearance" class="tab-content">
+            <!-- Icon Settings -->
+            <div class="section-title">Icon</div>
+
+            <div class="field">
+                <label for="icon-source">Icon Source</label>
+                <select id="icon-source">
+                    <option value="auto">Auto (from entity)</option>
+                    <option value="mdi">MDI Icon</option>
+                </select>
+            </div>
+
+            <div id="mdi-icon-field" class="field" style="display: none;">
+                <label>MDI Icon</label>
+                <div class="icon-picker">
+                    <div class="icon-picker-selected" id="icon-picker-selected">
+                        <svg id="icon-picker-preview" class="icon-preview" viewBox="0 0 24 24"><path d=""/></svg>
+                        <input type="text" id="mdi-icon" placeholder="Search icons...">
+                        <svg class="icon-picker-arrow" viewBox="0 0 24 24"><path d="M7,10L12,15L17,10H7Z" fill="currentColor"/></svg>
+                    </div>
+                    <div class="icon-picker-dropdown" id="icon-picker-dropdown">
+                        <div class="icon-picker-list" id="icon-picker-list"></div>
+                    </div>
+                </div>
+                <div class="help-text-inline">
+                    More icons at <a href="https://pictogrammers.com/library/mdi/" target="_blank">pictogrammers.com</a>
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field half">
+                    <label for="icon-color-on">Icon Color (On)</label>
+                    <div class="color-input-wrapper">
+                        <input type="color" id="icon-color-on" value="#FFD700">
+                        <input type="text" id="icon-color-on-text" class="color-text" value="#FFD700">
+                    </div>
+                </div>
+                <div class="field half">
+                    <label for="icon-color-off">Icon Color (Off)</label>
+                    <div class="color-input-wrapper">
+                        <input type="color" id="icon-color-off" value="#808080">
+                        <input type="text" id="icon-color-off-text" class="color-text" value="#808080">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Title Settings -->
+            <div id="title-section">
+                <div class="section-title">Title</div>
+
+                <div class="field">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="show-title" checked>
+                        <span>Show Title</span>
+                    </label>
+                </div>
+
+                <div id="title-options">
+                    <div class="field">
+                        <label for="title-override">Custom Title</label>
+                        <input type="text" id="title-override" placeholder="Leave empty for entity name">
+                    </div>
+
+                    <div class="field">
+                        <label for="title-position">Title Position</label>
+                        <select id="title-position">
+                            <option value="top">Top</option>
+                            <option value="bottom" selected>Bottom</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- State Settings -->
+            <div class="section-title">State</div>
+
+            <div class="field">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show-state" checked>
+                    <span>Show State</span>
+                </label>
+            </div>
+
+            <div id="state-options">
+                <div class="field">
+                    <label for="state-position">State Position</label>
+                    <select id="state-position">
+                        <option value="top" selected>Top</option>
+                        <option value="bottom">Bottom</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Background Settings -->
+            <div class="section-title">Background</div>
+
+            <div class="field">
+                <label for="background-color">Background Color</label>
+                <div class="color-input-wrapper">
+                    <input type="color" id="background-color" value="#1a1a1a">
+                    <input type="text" id="background-color-text" class="color-text" value="#1a1a1a">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/mdi-icons.js"></script>
+    <script src="js/entity-button-pi.js"></script>
+</body>
+</html>

@@ -1,12 +1,12 @@
 {
   "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
-  "Name": "Home Assistant",
+  "Name": "Deck Assistant",
   "Version": "0.1.0",
   "Author": "Stream Deck User",
   "Actions": [
     {
       "Name": "Entity Button",
-      "UUID": "com.homeassistant.streamdeck.entity-button",
+      "UUID": "com.deckassistant.entity-button",
       "Icon": "imgs/actions/entity-button/icon",
       "Tooltip": "Control any Home Assistant entity",
       "PropertyInspectorPath": "ui/entity-button.html",
@@ -15,9 +15,21 @@
           "Image": "imgs/actions/entity-button/state"
         }
       ]
+    },
+    {
+      "Name": "Settings",
+      "UUID": "com.deckassistant.settings",
+      "Icon": "imgs/actions/settings/icon",
+      "Tooltip": "Configure Home Assistant connection",
+      "PropertyInspectorPath": "ui/settings.html",
+      "States": [
+        {
+          "Image": "imgs/actions/settings/state"
+        }
+      ]
     }
   ],
-  "Category": "Home Assistant",
+  "Category": "Deck Assistant",
   "CategoryIcon": "imgs/plugin/category-icon",
   "CodePath": "bin/plugin.js",
   "Description": "Control Home Assistant entities from your Stream Deck",
@@ -40,5 +52,5 @@
     "Version": "20",
     "Debug": "enabled"
   },
-  "UUID": "com.homeassistant.streamdeck"
+  "UUID": "com.deckassistant"
 }

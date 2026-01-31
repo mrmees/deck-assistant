@@ -6,7 +6,7 @@ import json from "@rollup/plugin-json";
 export default {
   input: "src/plugin.ts",
   output: {
-    file: "com.homeassistant.streamdeck.sdPlugin/bin/plugin.js",
+    file: "com.deckassistant.sdPlugin/bin/plugin.js",
     format: "esm",
     sourcemap: true,
   },

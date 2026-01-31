@@ -1,4 +1,3 @@
-import sharp from 'sharp';
 import { getBundledIconPath } from './mdi-bundled.js';
 import { getCachedIcon, cacheIcon } from './cache.js';
 
@@ -198,19 +197,9 @@ export async function renderIcon(iconName: string, options: RenderOptions): Prom
 
   svg += '</svg>';
 
-  // Convert SVG to PNG using sharp
-  try {
-    const pngBuffer = await sharp(Buffer.from(svg))
-      .png()
-      .toBuffer();
-
-    const base64 = pngBuffer.toString('base64');
-    return `data:image/png;base64,${base64}`;
-  } catch (error) {
-    console.error('Error rendering icon to PNG:', error);
-    // Return a simple fallback
-    return createFallbackImage(size, backgroundColor);
-  }
+  // Convert SVG to base64 data URI (Stream Deck accepts SVG directly)
+  const base64 = Buffer.from(svg).toString('base64');
+  return `data:image/svg+xml;base64,${base64}`;
 }
 
 /**
@@ -233,28 +222,6 @@ function truncateText(text: string, maxLength: number): string {
     return text;
   }
   return text.substring(0, maxLength - 1) + '...';
-}
-
-/**
- * Creates a simple fallback image when rendering fails.
- */
-async function createFallbackImage(size: number, backgroundColor: string): Promise<string> {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-    <rect width="${size}" height="${size}" fill="${backgroundColor}"/>
-    <text x="${size/2}" y="${size/2}" font-family="Arial" font-size="${size * 0.3}" fill="#888888" text-anchor="middle" dominant-baseline="middle">?</text>
-  </svg>`;
-
-  try {
-    const pngBuffer = await sharp(Buffer.from(svg))
-      .png()
-      .toBuffer();
-
-    const base64 = pngBuffer.toString('base64');
-    return `data:image/png;base64,${base64}`;
-  } catch {
-    // If even this fails, return an empty data URI
-    return 'data:image/png;base64,';
-  }
 }
 
 /**

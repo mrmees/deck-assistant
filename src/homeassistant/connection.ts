@@ -13,6 +13,7 @@ import {
   HAConfig,
   HAEntity,
   HAArea,
+  HADevice,
   HAEntityRegistryEntry,
   ConnectionState,
 } from "./types.js";
@@ -27,6 +28,7 @@ export class HomeAssistantConnection {
   private connection: Connection | null = null;
   private entities: Record<string, HAEntity> = {};
   private areas: HAArea[] = [];
+  private devices: HADevice[] = [];
   private entityRegistry: HAEntityRegistryEntry[] = [];
   private entitySubscribers: Set<EntityCallback> = new Set();
   private connectionSubscribers: Set<ConnectionCallback> = new Set();
@@ -59,9 +61,10 @@ export class HomeAssistantConnection {
         this.handleEntitiesUpdate(entities);
       });
 
-      // Fetch areas and entity registry
+      // Fetch areas, devices, and entity registry
       await Promise.all([
         this.fetchAreas(),
+        this.fetchDevices(),
         this.fetchEntityRegistry(),
       ]);
 
@@ -89,6 +92,7 @@ export class HomeAssistantConnection {
 
     this.entities = {};
     this.areas = [];
+    this.devices = [];
     this.entityRegistry = [];
     this.updateConnectionState({ connected: false });
   }
@@ -135,6 +139,13 @@ export class HomeAssistantConnection {
    */
   getEntityRegistry(): HAEntityRegistryEntry[] {
     return [...this.entityRegistry];
+  }
+
+  /**
+   * Get device registry entries
+   */
+  getDeviceRegistry(): HADevice[] {
+    return [...this.devices];
   }
 
   /**
@@ -199,6 +210,25 @@ export class HomeAssistantConnection {
     } catch (error) {
       console.error("Failed to fetch areas:", error);
       this.areas = [];
+    }
+  }
+
+  /**
+   * Fetch device registry from Home Assistant
+   */
+  private async fetchDevices(): Promise<void> {
+    if (!this.connection) {
+      return;
+    }
+
+    try {
+      const devices = await this.connection.sendMessagePromise<HADevice[]>({
+        type: "config/device_registry/list",
+      });
+      this.devices = devices || [];
+    } catch (error) {
+      console.error("Failed to fetch devices:", error);
+      this.devices = [];
     }
   }
 
