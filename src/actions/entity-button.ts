@@ -10,7 +10,7 @@ import streamDeck, {
   KeyAction,
 } from "@elgato/streamdeck";
 import { haConnection } from "../homeassistant/connection.js";
-import { HAEntity } from "../homeassistant/types.js";
+import { HAEntity, ConnectionState } from "../homeassistant/types.js";
 import { EntityButtonSettings, defaultEntityButtonSettings } from "./types.js";
 import { renderIcon, getDefaultIconForDomain, isStateOn } from "../icons/index.js";
 
@@ -18,6 +18,12 @@ const logger = streamDeck.logger.createScope("EntityButtonAction");
 
 // Map to track entity subscriptions per action context
 const contextSubscriptions = new Map<string, () => void>();
+
+// Map to track connection subscriptions per action context
+const connectionSubscriptions = new Map<string, () => void>();
+
+// Map to track active actions for reconnection updates
+const activeActions = new Map<string, { action: KeyAction<EntityButtonSettings>; settings: EntityButtonSettings }>();
 
 /**
  * Action that controls Home Assistant entities from Stream Deck buttons
@@ -34,15 +40,40 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
   override async onWillAppear(ev: WillAppearEvent<EntityButtonSettings>): Promise<void> {
     const settings = { ...defaultEntityButtonSettings, ...ev.payload.settings } as EntityButtonSettings;
     const context = ev.action.id;
+    const action = ev.action as KeyAction<EntityButtonSettings>;
 
     logger.debug(`Entity button appeared: ${context}, entityId: ${settings.entityId}`);
+
+    // Store the action for reconnection updates
+    activeActions.set(context, { action, settings });
+
+    // Check if connected, show disconnected state if not
+    if (!haConnection.isConnected()) {
+      await this.showDisconnectedState(action);
+    }
+
+    // Subscribe to connection state changes
+    const connectionUnsubscribe = haConnection.subscribeToConnection(async (state: ConnectionState) => {
+      if (!state.connected) {
+        await this.showDisconnectedState(action);
+      } else {
+        // Reconnected - refresh button appearance
+        if (settings.entityId) {
+          const entity = haConnection.getEntity(settings.entityId);
+          if (entity) {
+            await this.updateButtonAppearance(action, entity, settings);
+          }
+        }
+      }
+    });
+    connectionSubscriptions.set(context, connectionUnsubscribe);
 
     // Subscribe to entity updates
     if (settings.entityId) {
       const unsubscribe = haConnection.subscribeToEntities((entities) => {
         const entity = entities[settings.entityId];
         if (entity) {
-          this.updateButtonAppearance(ev.action as KeyAction<EntityButtonSettings>, entity, settings);
+          this.updateButtonAppearance(action, entity, settings);
         }
       });
 
@@ -51,7 +82,7 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
       // Initial update if entity is already available
       const entity = haConnection.getEntity(settings.entityId);
       if (entity) {
-        this.updateButtonAppearance(ev.action as KeyAction<EntityButtonSettings>, entity, settings);
+        this.updateButtonAppearance(action, entity, settings);
       }
     }
   }
@@ -65,11 +96,21 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
     logger.debug(`Entity button disappeared: ${context}`);
 
     // Unsubscribe from entity updates
-    const unsubscribe = contextSubscriptions.get(context);
-    if (unsubscribe) {
-      unsubscribe();
+    const entityUnsubscribe = contextSubscriptions.get(context);
+    if (entityUnsubscribe) {
+      entityUnsubscribe();
       contextSubscriptions.delete(context);
     }
+
+    // Unsubscribe from connection updates
+    const connectionUnsubscribe = connectionSubscriptions.get(context);
+    if (connectionUnsubscribe) {
+      connectionUnsubscribe();
+      connectionSubscriptions.delete(context);
+    }
+
+    // Remove from active actions
+    activeActions.delete(context);
   }
 
   /**
@@ -107,8 +148,12 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
   override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<EntityButtonSettings>): Promise<void> {
     const settings = { ...defaultEntityButtonSettings, ...ev.payload.settings } as EntityButtonSettings;
     const context = ev.action.id;
+    const action = ev.action as KeyAction<EntityButtonSettings>;
 
     logger.debug(`Settings updated for: ${context}, entityId: ${settings.entityId}`);
+
+    // Update stored settings for reconnection updates
+    activeActions.set(context, { action, settings });
 
     // Unsubscribe from previous entity
     const oldUnsubscribe = contextSubscriptions.get(context);
@@ -117,11 +162,14 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
       contextSubscriptions.delete(context);
     }
 
+    // Check if connected, show disconnected state if not
+    if (!haConnection.isConnected()) {
+      await this.showDisconnectedState(action);
+      return;
+    }
+
     // Subscribe to new entity
     if (settings.entityId) {
-      // We need to get the action to update its appearance
-      const action = ev.action as KeyAction<EntityButtonSettings>;
-
       const unsubscribe = haConnection.subscribeToEntities((entities) => {
         const entity = entities[settings.entityId];
         if (entity) {
@@ -262,6 +310,31 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
       }
 
       await action.setTitle(title);
+    }
+  }
+
+  /**
+   * Show disconnected state on a button
+   */
+  private async showDisconnectedState(action: KeyAction<EntityButtonSettings>): Promise<void> {
+    try {
+      // Render a disconnected icon
+      const imageData = await renderIcon("wifi-off", {
+        size: 144,
+        iconColor: "#FF4444",
+        backgroundColor: "#333333",
+        title: "Not",
+        titlePosition: "top",
+        state: "Connected",
+        statePosition: "bottom",
+      });
+
+      await action.setImage(imageData);
+      await action.setTitle("");
+    } catch (error) {
+      logger.error(`Failed to render disconnected state: ${error}`);
+      // Fallback to text-only
+      await action.setTitle("Not\nConnected");
     }
   }
 

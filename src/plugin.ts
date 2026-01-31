@@ -7,6 +7,54 @@ streamDeck.logger.setLevel(LogLevel.DEBUG);
 
 const logger = streamDeck.logger.createScope("Plugin");
 
+// Track connection attempts
+let connectionAttempts = 0;
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 5000;
+
+// Store current connection config for retries
+let currentConfig: { url: string; token: string } | null = null;
+
+/**
+ * Connect to Home Assistant with retry logic
+ */
+async function connectToHA(url: string, token: string): Promise<void> {
+  try {
+    await haConnection.connect({ url, token });
+    connectionAttempts = 0;
+    logger.info("Connected to Home Assistant");
+  } catch (error) {
+    connectionAttempts++;
+    logger.error(`Connection failed (attempt ${connectionAttempts}):`, error);
+
+    if (connectionAttempts < MAX_RETRIES) {
+      logger.info(`Retrying in ${RETRY_DELAY / 1000}s...`);
+      setTimeout(() => connectToHA(url, token), RETRY_DELAY);
+    } else {
+      logger.error(`Max retries (${MAX_RETRIES}) reached. Giving up.`);
+    }
+  }
+}
+
+// Subscribe to connection state changes
+haConnection.subscribeToConnection((state) => {
+  if (state.connected) {
+    logger.info("Connection state: Connected");
+  } else {
+    logger.info(`Connection state: Disconnected${state.error ? ` - ${state.error}` : ""}`);
+
+    // Attempt to reconnect if we have config and haven't exhausted retries
+    if (currentConfig && connectionAttempts < MAX_RETRIES && connectionAttempts > 0) {
+      logger.info(`Attempting reconnection...`);
+      setTimeout(() => {
+        if (currentConfig) {
+          connectToHA(currentConfig.url, currentConfig.token);
+        }
+      }, RETRY_DELAY);
+    }
+  }
+});
+
 // Register actions
 streamDeck.actions.registerAction(new EntityButtonAction());
 
@@ -26,15 +74,13 @@ streamDeck.settings.onDidReceiveGlobalSettings<{
       haConnection.disconnect();
     }
 
-    // Connect to Home Assistant
+    // Reset connection attempts when settings change
+    connectionAttempts = 0;
+    currentConfig = { url: haUrl, token: haToken };
+
+    // Connect to Home Assistant with retry logic
     logger.info(`Connecting to Home Assistant at ${haUrl}`);
-    haConnection.connect({ url: haUrl, token: haToken })
-      .then(() => {
-        logger.info("Successfully connected to Home Assistant");
-      })
-      .catch((error) => {
-        logger.error(`Failed to connect to Home Assistant: ${error}`);
-      });
+    connectToHA(haUrl, haToken);
   }
 });
 
