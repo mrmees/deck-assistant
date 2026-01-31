@@ -1,11 +1,13 @@
 import streamDeck, {
-  action,
   KeyDownEvent,
   SingletonAction,
   WillAppearEvent,
   WillDisappearEvent,
   DidReceiveSettingsEvent,
   SendToPluginEvent,
+  JsonValue,
+  JsonObject,
+  KeyAction,
 } from "@elgato/streamdeck";
 import { haConnection } from "../homeassistant/connection.js";
 import { HAEntity } from "../homeassistant/types.js";
@@ -16,13 +18,20 @@ const logger = streamDeck.logger.createScope("EntityButtonAction");
 // Map to track entity subscriptions per action context
 const contextSubscriptions = new Map<string, () => void>();
 
-@action({ UUID: "com.homeassistant.streamdeck.entity-button" })
+/**
+ * Action that controls Home Assistant entities from Stream Deck buttons
+ */
 export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
+  /**
+   * The UUID from the manifest that identifies this action
+   */
+  override readonly manifestId = "com.homeassistant.streamdeck.entity-button";
+
   /**
    * Called when the action appears on the Stream Deck
    */
   override async onWillAppear(ev: WillAppearEvent<EntityButtonSettings>): Promise<void> {
-    const settings = { ...defaultEntityButtonSettings, ...ev.payload.settings };
+    const settings = { ...defaultEntityButtonSettings, ...ev.payload.settings } as EntityButtonSettings;
     const context = ev.action.id;
 
     logger.debug(`Entity button appeared: ${context}, entityId: ${settings.entityId}`);
@@ -32,7 +41,7 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
       const unsubscribe = haConnection.subscribeToEntities((entities) => {
         const entity = entities[settings.entityId];
         if (entity) {
-          this.updateButtonAppearance(ev, entity, settings);
+          this.updateButtonAppearance(ev.action as KeyAction<EntityButtonSettings>, entity, settings);
         }
       });
 
@@ -41,7 +50,7 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
       // Initial update if entity is already available
       const entity = haConnection.getEntity(settings.entityId);
       if (entity) {
-        this.updateButtonAppearance(ev, entity, settings);
+        this.updateButtonAppearance(ev.action as KeyAction<EntityButtonSettings>, entity, settings);
       }
     }
   }
@@ -66,7 +75,7 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
    * Called when the key is pressed
    */
   override async onKeyDown(ev: KeyDownEvent<EntityButtonSettings>): Promise<void> {
-    const settings = { ...defaultEntityButtonSettings, ...ev.payload.settings };
+    const settings = { ...defaultEntityButtonSettings, ...ev.payload.settings } as EntityButtonSettings;
 
     logger.debug(`Key pressed for entity: ${settings.entityId}, action: ${settings.action}`);
 
@@ -95,7 +104,7 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
    * Called when settings are updated from the Property Inspector
    */
   override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<EntityButtonSettings>): Promise<void> {
-    const settings = { ...defaultEntityButtonSettings, ...ev.payload.settings };
+    const settings = { ...defaultEntityButtonSettings, ...ev.payload.settings } as EntityButtonSettings;
     const context = ev.action.id;
 
     logger.debug(`Settings updated for: ${context}, entityId: ${settings.entityId}`);
@@ -109,10 +118,13 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
 
     // Subscribe to new entity
     if (settings.entityId) {
+      // We need to get the action to update its appearance
+      const action = ev.action as KeyAction<EntityButtonSettings>;
+
       const unsubscribe = haConnection.subscribeToEntities((entities) => {
         const entity = entities[settings.entityId];
         if (entity) {
-          this.updateButtonAppearance(ev, entity, settings);
+          this.updateButtonAppearance(action, entity, settings);
         }
       });
 
@@ -121,7 +133,7 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
       // Initial update
       const entity = haConnection.getEntity(settings.entityId);
       if (entity) {
-        this.updateButtonAppearance(ev, entity, settings);
+        this.updateButtonAppearance(action, entity, settings);
       }
     }
   }
@@ -129,26 +141,27 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
   /**
    * Called when the Property Inspector sends a message to the plugin
    */
-  override async onSendToPlugin(ev: SendToPluginEvent<Record<string, unknown>, EntityButtonSettings>): Promise<void> {
-    const { event } = ev.payload;
+  override async onSendToPlugin(ev: SendToPluginEvent<JsonValue, EntityButtonSettings>): Promise<void> {
+    const payload = ev.payload as JsonObject;
+    const event = payload?.event as string | undefined;
 
     logger.debug(`Received message from PI: ${event}`);
 
     if (event === "connect") {
       // Property Inspector is requesting connection status
       const isConnected = haConnection.isConnected();
-      await ev.action.sendToPropertyInspector({
+      await streamDeck.ui.current?.sendToPropertyInspector({
         event: "connectionStatus",
         connected: isConnected,
       });
 
       if (isConnected) {
-        await this.sendEntitiesToPropertyInspector(ev);
+        await this.sendEntitiesToPropertyInspector();
       }
     } else if (event === "getEntities") {
       // Property Inspector is requesting entity list
       if (haConnection.isConnected()) {
-        await this.sendEntitiesToPropertyInspector(ev);
+        await this.sendEntitiesToPropertyInspector();
       }
     }
   }
@@ -157,12 +170,11 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
    * Update the button appearance based on entity state
    */
   private async updateButtonAppearance(
-    ev: WillAppearEvent<EntityButtonSettings> | DidReceiveSettingsEvent<EntityButtonSettings>,
+    action: KeyAction<EntityButtonSettings>,
     entity: HAEntity,
     settings: EntityButtonSettings
   ): Promise<void> {
     const { appearance } = settings;
-    const isOn = this.isEntityOn(entity);
 
     // Build title based on settings
     let title = "";
@@ -201,13 +213,10 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
     }
 
     // Set the title
-    await ev.action.setTitle(title);
-
-    // Set background color based on state if configured
-    if (appearance.backgroundColorOn && appearance.backgroundColorOff) {
-      // Note: Stream Deck SDK doesn't directly support background color
-      // This would require generating a custom image
-      // For now, we'll just use the title color as an indicator
+    try {
+      await action.setTitle(title);
+    } catch (error) {
+      logger.error(`Failed to set title: ${error}`);
     }
   }
 
@@ -237,7 +246,7 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
 
     // Determine the service to call based on domain and action
     let serviceDomain = domain;
-    let service = action;
+    let service: string = action;
 
     // Handle special domains
     switch (domain) {
@@ -368,20 +377,9 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
   }
 
   /**
-   * Check if the entity is in an "on" state
-   */
-  private isEntityOn(entity: HAEntity): boolean {
-    const { state } = entity;
-    const onStates = ["on", "open", "unlocked", "playing", "cleaning", "home", "heat", "cool", "auto"];
-    return onStates.includes(state.toLowerCase());
-  }
-
-  /**
    * Send entities and areas to the Property Inspector
    */
-  private async sendEntitiesToPropertyInspector(
-    ev: SendToPluginEvent<Record<string, unknown>, EntityButtonSettings>
-  ): Promise<void> {
+  private async sendEntitiesToPropertyInspector(): Promise<void> {
     const entities = haConnection.getAllEntities();
     const areas = haConnection.getAreas();
     const entityRegistry = haConnection.getEntityRegistry();
@@ -406,7 +404,7 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
     // Sort entities by friendly name
     entityList.sort((a, b) => a.friendly_name.localeCompare(b.friendly_name));
 
-    await ev.action.sendToPropertyInspector({
+    await streamDeck.ui.current?.sendToPropertyInspector({
       event: "entities",
       entities: entityList,
       areas: areas.map((a) => ({ area_id: a.area_id, name: a.name })),

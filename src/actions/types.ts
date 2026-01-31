@@ -1,10 +1,12 @@
+import type { JsonValue } from "@elgato/streamdeck";
+
 export interface EntityButtonSettings {
   entityId: string;
   action: "toggle" | "turn_on" | "turn_off" | "call_service" | "none";
   serviceData?: {
     domain: string;
     service: string;
-    data?: object;
+    data?: JsonValue;
   };
   appearance: {
     showTitle: boolean;
@@ -21,6 +23,8 @@ export interface EntityButtonSettings {
     backgroundColorOn?: string;
     backgroundColorOff?: string;
   };
+  // Index signature for JsonObject compatibility
+  [key: string]: JsonValue;
 }
 
 export const defaultEntityButtonSettings: EntityButtonSettings = {

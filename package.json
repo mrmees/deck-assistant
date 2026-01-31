@@ -5,8 +5,8 @@
     "main": "src/plugin.ts",
     "type": "module",
     "scripts": {
-        "build": "tsc && node scripts/copy-assets.js",
-        "watch": "tsc --watch",
+        "build": "rollup -c",
+        "watch": "rollup -c --watch",
         "start": "streamdeck dev",
         "pack": "streamdeck pack com.homeassistant.streamdeck.sdPlugin",
         "lint": "eslint src --ext .ts",
@@ -22,8 +22,14 @@
     "license": "MIT",
     "devDependencies": {
         "@elgato/cli": "^1.0.0",
+        "@rollup/plugin-commonjs": "^29.0.0",
+        "@rollup/plugin-json": "^6.1.0",
+        "@rollup/plugin-node-resolve": "^16.0.3",
+        "@rollup/plugin-typescript": "^12.3.0",
         "@types/node": "^20.19.30",
         "@types/ws": "^8.18.1",
+        "rollup": "^4.57.1",
+        "tslib": "^2.8.1",
         "typescript": "^5.0.0"
     },
     "dependencies": {

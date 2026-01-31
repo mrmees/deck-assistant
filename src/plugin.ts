@@ -14,8 +14,8 @@ streamDeck.actions.registerAction(new EntityButtonAction());
 streamDeck.settings.onDidReceiveGlobalSettings<{
   haUrl?: string;
   haToken?: string;
-}>((settings) => {
-  const { haUrl, haToken } = settings;
+}>((ev) => {
+  const { haUrl, haToken } = ev.settings;
 
   logger.info(`Received global settings, haUrl: ${haUrl ? "set" : "not set"}, haToken: ${haToken ? "set" : "not set"}`);
 
