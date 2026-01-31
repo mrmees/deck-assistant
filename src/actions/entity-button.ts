@@ -197,16 +197,54 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
     logger.debug(`Received message from PI: ${event}`);
 
     if (event === "connect") {
-      // Property Inspector is requesting connection status
-      const isConnected = haConnection.isConnected();
-      await streamDeck.ui.current?.sendToPropertyInspector({
-        event: "connectionStatus",
-        connected: isConnected,
-      });
+      // Property Inspector is requesting connection - wait for connection to complete
+      logger.debug("PI requested connect, checking connection status...");
 
-      if (isConnected) {
+      // If already connected, send status immediately
+      if (haConnection.isConnected()) {
+        logger.debug("Already connected, sending entities");
+        await streamDeck.ui.current?.sendToPropertyInspector({
+          event: "connectionStatus",
+          connected: true,
+        });
         await this.sendEntitiesToPropertyInspector();
+        return;
       }
+
+      // Not connected yet - wait for connection (with timeout)
+      // The global settings handler in plugin.ts should trigger the connection
+      logger.debug("Not connected yet, waiting for connection...");
+
+      const maxWaitTime = 10000; // 10 seconds
+      const checkInterval = 500; // Check every 500ms
+      let waited = 0;
+
+      const waitForConnection = async (): Promise<void> => {
+        while (waited < maxWaitTime) {
+          if (haConnection.isConnected()) {
+            logger.debug("Connection established!");
+            await streamDeck.ui.current?.sendToPropertyInspector({
+              event: "connectionStatus",
+              connected: true,
+            });
+            await this.sendEntitiesToPropertyInspector();
+            return;
+          }
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          waited += checkInterval;
+        }
+
+        // Timeout - send failure
+        logger.debug("Connection timeout");
+        await streamDeck.ui.current?.sendToPropertyInspector({
+          event: "connectionStatus",
+          connected: false,
+          error: "Connection timeout - check URL and token",
+        });
+      };
+
+      await waitForConnection();
+
     } else if (event === "getEntities") {
       // Property Inspector is requesting entity list
       if (haConnection.isConnected()) {
