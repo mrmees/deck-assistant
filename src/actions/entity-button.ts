@@ -12,6 +12,7 @@ import streamDeck, {
 import { haConnection } from "../homeassistant/connection.js";
 import { HAEntity } from "../homeassistant/types.js";
 import { EntityButtonSettings, defaultEntityButtonSettings } from "./types.js";
+import { renderIcon, getDefaultIconForDomain, isStateOn } from "../icons/index.js";
 
 const logger = streamDeck.logger.createScope("EntityButtonAction");
 
@@ -176,47 +177,91 @@ export class EntityButtonAction extends SingletonAction<EntityButtonSettings> {
   ): Promise<void> {
     const { appearance } = settings;
 
-    // Build title based on settings
-    let title = "";
+    // Determine if the entity is "on"
+    const domain = entity.entity_id.split(".")[0];
+    const isOn = isStateOn(entity.state, domain);
 
-    if (appearance.showState) {
-      const stateText = this.formatState(entity);
-      if (appearance.statePosition === "top") {
-        title = stateText;
-      }
+    // Determine which icon to use
+    let iconName: string;
+    if (appearance.iconSource === "mdi" && appearance.mdiIcon) {
+      iconName = appearance.mdiIcon;
+    } else if (appearance.iconSource === "auto" && entity.attributes.icon) {
+      // Use entity's icon attribute (e.g., "mdi:lightbulb")
+      iconName = entity.attributes.icon as string;
+    } else {
+      // Use default icon for domain
+      iconName = getDefaultIconForDomain(domain);
     }
 
-    if (appearance.showTitle) {
-      const titleText = appearance.titleOverride || entity.attributes.friendly_name || entity.entity_id;
-      if (appearance.titlePosition === "bottom") {
-        if (title) {
-          title += "\n" + titleText;
-        } else {
-          title = titleText;
-        }
-      } else {
-        if (title) {
-          title = titleText + "\n" + title;
-        } else {
-          title = titleText;
-        }
-      }
-    }
+    // Determine colors based on state
+    const iconColor = isOn ? appearance.iconColorOn : appearance.iconColorOff;
+    const backgroundColor = isOn
+      ? (appearance.backgroundColorOn || appearance.backgroundColor)
+      : (appearance.backgroundColorOff || appearance.backgroundColor);
 
-    if (appearance.showState && appearance.statePosition === "bottom") {
-      const stateText = this.formatState(entity);
-      if (title) {
-        title += "\n" + stateText;
-      } else {
-        title = stateText;
-      }
-    }
+    // Build title and state text for rendering
+    const titleText = appearance.showTitle
+      ? (appearance.titleOverride || entity.attributes.friendly_name || entity.entity_id)
+      : undefined;
 
-    // Set the title
+    const stateText = appearance.showState ? this.formatState(entity) : undefined;
+
+    // Render the icon
     try {
-      await action.setTitle(title);
+      const imageData = await renderIcon(iconName, {
+        size: 144, // Stream Deck XL uses 144x144, standard uses 72x72
+        iconColor,
+        backgroundColor,
+        title: titleText,
+        titlePosition: appearance.titlePosition,
+        state: stateText,
+        statePosition: appearance.statePosition,
+      });
+
+      // Set the image on the button
+      await action.setImage(imageData);
+
+      // Clear the title since it's rendered in the image
+      await action.setTitle("");
     } catch (error) {
-      logger.error(`Failed to set title: ${error}`);
+      logger.error(`Failed to render icon: ${error}`);
+
+      // Fallback to text-only display
+      let title = "";
+      if (appearance.showState) {
+        const formattedState = this.formatState(entity);
+        if (appearance.statePosition === "top") {
+          title = formattedState;
+        }
+      }
+
+      if (appearance.showTitle) {
+        const displayTitle = appearance.titleOverride || entity.attributes.friendly_name || entity.entity_id;
+        if (appearance.titlePosition === "bottom") {
+          if (title) {
+            title += "\n" + displayTitle;
+          } else {
+            title = displayTitle;
+          }
+        } else {
+          if (title) {
+            title = displayTitle + "\n" + title;
+          } else {
+            title = displayTitle;
+          }
+        }
+      }
+
+      if (appearance.showState && appearance.statePosition === "bottom") {
+        const formattedState = this.formatState(entity);
+        if (title) {
+          title += "\n" + formattedState;
+        } else {
+          title = formattedState;
+        }
+      }
+
+      await action.setTitle(title);
     }
   }
 
