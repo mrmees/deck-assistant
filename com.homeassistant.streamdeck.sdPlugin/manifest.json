@@ -1,47 +1,44 @@
 {
-    "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
-    "Name": "Home Assistant",
-    "Version": "1.0.0",
-    "Author": "Home Assistant Stream Deck Plugin",
-    "Description": "Control Home Assistant entities from Stream Deck",
-    "Icon": "imgs/plugin/icon",
-    "UUID": "com.homeassistant.streamdeck",
-    "SDKVersion": 2,
-    "Software": {
-        "MinimumVersion": "6.0"
-    },
-    "OS": [
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Name": "Home Assistant",
+  "Version": "0.1.0",
+  "Author": "Stream Deck User",
+  "Actions": [
+    {
+      "Name": "Entity Button",
+      "UUID": "com.homeassistant.streamdeck.entity-button",
+      "Icon": "imgs/actions/entity-button/icon",
+      "Tooltip": "Control any Home Assistant entity",
+      "PropertyInspectorPath": "ui/entity-button.html",
+      "States": [
         {
-            "Platform": "windows",
-            "MinimumVersion": "10"
-        },
-        {
-            "Platform": "mac",
-            "MinimumVersion": "10.15"
+          "Image": "imgs/actions/entity-button/state"
         }
-    ],
-    "Nodejs": {
-        "Version": "20",
-        "Debug": "enabled"
+      ]
+    }
+  ],
+  "Category": "Home Assistant",
+  "CategoryIcon": "imgs/plugin/category-icon",
+  "CodePath": "bin/plugin.js",
+  "Description": "Control Home Assistant entities from your Stream Deck",
+  "Icon": "imgs/plugin/icon",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "6.9"
+  },
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "10.15"
     },
-    "Actions": [
-        {
-            "Name": "Toggle Entity",
-            "UUID": "com.homeassistant.streamdeck.toggle",
-            "Icon": "imgs/actions/toggle/icon",
-            "Tooltip": "Toggle a Home Assistant entity on/off",
-            "Controllers": ["Keypad"],
-            "States": [
-                {
-                    "Image": "imgs/actions/toggle/key",
-                    "TitleAlignment": "bottom",
-                    "FontSize": "12"
-                }
-            ],
-            "PropertyInspectorPath": "ui/toggle-pi.html"
-        }
-    ],
-    "Category": "Home Assistant",
-    "CategoryIcon": "imgs/plugin/category-icon",
-    "CodePath": "bin/plugin.js"
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "enabled"
+  },
+  "UUID": "com.homeassistant.streamdeck"
 }
