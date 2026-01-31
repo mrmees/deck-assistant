@@ -1,7 +1,7 @@
-import streamDeck, { LogLevel } from "@elgato/streamdeck";
+import streamDeck from "@elgato/streamdeck";
 
-// Enable logging for debugging
-streamDeck.logger.setLevel(LogLevel.TRACE);
+// Enable logging for debugging (TRACE = 4)
+streamDeck.logger.setLevel(4);
 
 // Register actions
 // Actions will be added in subsequent tasks
