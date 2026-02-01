@@ -2281,7 +2281,8 @@ function styleEditor() {
         },
 
         /**
-         * Build pages structure from Style Editor selections
+         * Build pages from Style Editor configuration
+         * Order: Folders → Flat entities → Ungrouped → Page-type groups
          */
         buildPagesFromStyleEditor() {
             const pages = [];
@@ -2289,76 +2290,239 @@ function styleEditor() {
             const ungrouped = this.wizardSelections.ungroupedEntities || [];
             const cellsPerPage = this.deviceSize.cols * this.deviceSize.rows;
 
-            // Create main page
-            const mainPage = {
-                id: this.generateId(),
-                name: 'Main',
-                layout: this.createEmptyLayout()
-            };
+            // Collect all items for the linear flow (main + overflow + page-groups)
+            const linearItems = [];
 
-            let mainPosition = 0;
-
-            // Add folders for folder-type groups
-            for (const group of groups) {
-                if (group.displayType === 'folder') {
-                    const row = Math.floor(mainPosition / this.deviceSize.cols);
-                    const col = mainPosition % this.deviceSize.cols;
-
-                    if (row < this.deviceSize.rows) {
-                        const style = this.getGroupStyle(group.name);
-                        mainPage.layout[row][col] = {
-                            isFolder: true,
-                            name: group.name,
-                            style: style
-                        };
-                        mainPosition++;
-                    }
-                } else if (group.displayType === 'flat') {
-                    // Flat groups: add entities directly to main page
-                    const style = this.getGroupStyle(group.name);
-                    for (const entityId of group.entities) {
-                        const entity = this.getEntityById(entityId);
-                        if (entity && mainPosition < cellsPerPage) {
-                            const row = Math.floor(mainPosition / this.deviceSize.cols);
-                            const col = mainPosition % this.deviceSize.cols;
-                            mainPage.layout[row][col] = {
-                                ...entity,
-                                style: style
-                            };
-                            mainPosition++;
-                        }
-                    }
-                }
-                // 'page' type groups are separate pages, not on main
+            // 1. Folder buttons (just the buttons, sub-pages created separately)
+            const folderGroups = groups.filter(g => g.displayType === 'folder');
+            for (const group of folderGroups) {
+                linearItems.push({
+                    type: 'folder-button',
+                    group: group,
+                    style: this.getGroupStyle(group.name)
+                });
             }
 
-            // Add ungrouped entities to main page
+            // 2. Flat group entities
+            const flatGroups = groups.filter(g => g.displayType === 'flat');
+            for (const group of flatGroups) {
+                const style = this.getGroupStyle(group.name);
+                for (const entityId of group.entities) {
+                    const entity = this.getEntityById(entityId);
+                    if (entity) {
+                        linearItems.push({
+                            type: 'entity',
+                            entity: entity,
+                            entityId: entityId,
+                            style: style
+                        });
+                    }
+                }
+            }
+
+            // 3. Ungrouped entities
             for (const entityId of ungrouped) {
                 const entity = this.getEntityById(entityId);
-                if (entity && mainPosition < cellsPerPage) {
-                    const row = Math.floor(mainPosition / this.deviceSize.cols);
-                    const col = mainPosition % this.deviceSize.cols;
-                    mainPage.layout[row][col] = {
-                        ...entity,
+                if (entity) {
+                    linearItems.push({
+                        type: 'entity',
+                        entity: entity,
+                        entityId: entityId,
                         style: this.ungroupedStyle
-                    };
-                    mainPosition++;
+                    });
                 }
             }
 
-            pages.push(mainPage);
+            // 4. Page-type groups (each becomes pages in the linear chain)
+            const pageGroups = groups.filter(g => g.displayType === 'page');
+            const pageGroupItems = [];
+            for (const group of pageGroups) {
+                const style = this.getGroupStyle(group.name);
+                const groupItems = [];
+                for (const entityId of group.entities) {
+                    const entity = this.getEntityById(entityId);
+                    if (entity) {
+                        groupItems.push({
+                            type: 'entity',
+                            entity: entity,
+                            entityId: entityId,
+                            style: style,
+                            groupName: group.name
+                        });
+                    }
+                }
+                if (groupItems.length > 0) {
+                    pageGroupItems.push({ group, items: groupItems });
+                }
+            }
 
-            // Create sub-pages for folder-type groups
-            for (const group of groups) {
-                if (group.displayType === 'folder') {
-                    const style = this.getGroupStyle(group.name);
-                    const groupPages = this.createPagesForGroup(group, style);
-                    pages.push(...groupPages);
-                } else if (group.displayType === 'page') {
-                    // Page-type groups: create as separate top-level pages
-                    const style = this.getGroupStyle(group.name);
-                    const groupPages = this.createPagesForGroup(group, style);
-                    pages.push(...groupPages);
+            // Build linear pages (main + overflow)
+            const linearPages = this.buildLinearPages(linearItems, pageGroupItems);
+            pages.push(...linearPages);
+
+            // Build folder sub-pages (separate from linear flow)
+            for (const group of folderGroups) {
+                const folderPages = this.buildFolderSubPages(group);
+                pages.push(...folderPages);
+            }
+
+            return pages;
+        },
+
+        /**
+         * Build linear pages (main, overflow, page-groups)
+         */
+        buildLinearPages(linearItems, pageGroupItems) {
+            const pages = [];
+            const cellsPerPage = this.deviceSize.cols * this.deviceSize.rows;
+            const navPositions = this.getNavPositions(this.theme.navStartPosition);
+
+            let remainingItems = [...linearItems];
+            let pageIndex = 0;
+            let isMain = true;
+
+            // First pass: determine if we need overflow pages
+            const pageGroupsExist = pageGroupItems.length > 0;
+
+            while (remainingItems.length > 0 || (isMain && remainingItems.length === 0)) {
+                const page = {
+                    id: this.generateId(),
+                    name: isMain ? 'Main' : `Page ${pageIndex + 1}`,
+                    type: isMain ? 'main' : 'overflow',
+                    layout: this.createEmptyLayout()
+                };
+
+                // Determine available slots
+                const hasMoreItems = remainingItems.length > (isMain ? cellsPerPage - 1 : cellsPerPage - 2);
+                const needsNext = hasMoreItems || pageGroupsExist;
+                const needsPrev = !isMain;
+
+                let availableSlots = cellsPerPage;
+                if (needsNext) availableSlots--;
+                if (needsPrev) availableSlots--;
+
+                // Place navigation buttons
+                if (needsPrev) {
+                    page.layout[navPositions.prev.row][navPositions.prev.col] = {
+                        type: 'nav-prev',
+                        icon: 'mdi:arrow-left',
+                        label: '←'
+                    };
+                }
+                if (needsNext) {
+                    page.layout[navPositions.next.row][navPositions.next.col] = {
+                        type: 'nav-next',
+                        icon: 'mdi:arrow-right',
+                        label: '→'
+                    };
+                }
+
+                // Fill with items, skipping reserved slots
+                const itemsForPage = remainingItems.splice(0, availableSlots);
+                let slotIndex = 0;
+
+                for (const item of itemsForPage) {
+                    // Find next available slot
+                    while (slotIndex < cellsPerPage) {
+                        const row = Math.floor(slotIndex / this.deviceSize.cols);
+                        const col = slotIndex % this.deviceSize.cols;
+
+                        // Skip if slot is reserved for navigation
+                        if (page.layout[row][col] !== null) {
+                            slotIndex++;
+                            continue;
+                        }
+
+                        // Place item
+                        if (item.type === 'folder-button') {
+                            page.layout[row][col] = {
+                                type: 'folder',
+                                label: item.group.name,
+                                icon: 'mdi:folder',
+                                groupName: item.group.name,
+                                targetPageId: null, // Will be linked later
+                                style: item.style
+                            };
+                        } else {
+                            page.layout[row][col] = {
+                                type: 'entity',
+                                ...item.entity,
+                                entityId: item.entityId,
+                                style: item.style
+                            };
+                        }
+                        slotIndex++;
+                        break;
+                    }
+                }
+
+                pages.push(page);
+                pageIndex++;
+                isMain = false;
+
+                // If no more linear items, break to handle page-groups
+                if (remainingItems.length === 0) break;
+            }
+
+            // Add page-group pages
+            for (const { group, items } of pageGroupItems) {
+                let remainingGroupItems = [...items];
+                let groupPageIndex = 0;
+
+                while (remainingGroupItems.length > 0) {
+                    const isLastGroupPage = remainingGroupItems.length <= (cellsPerPage - 2);
+                    const isLastGroup = pageGroupItems.indexOf(pageGroupItems.find(p => p.group === group)) === pageGroupItems.length - 1;
+                    const needsNext = !isLastGroupPage || !isLastGroup;
+
+                    const page = {
+                        id: this.generateId(),
+                        name: groupPageIndex === 0 ? group.name : `${group.name} ${groupPageIndex + 1}`,
+                        type: 'page-group',
+                        groupName: group.name,
+                        layout: this.createEmptyLayout()
+                    };
+
+                    // Navigation
+                    page.layout[navPositions.prev.row][navPositions.prev.col] = {
+                        type: 'nav-prev',
+                        icon: 'mdi:arrow-left',
+                        label: '←'
+                    };
+                    if (needsNext) {
+                        page.layout[navPositions.next.row][navPositions.next.col] = {
+                            type: 'nav-next',
+                            icon: 'mdi:arrow-right',
+                            label: '→'
+                        };
+                    }
+
+                    const availableSlots = needsNext ? cellsPerPage - 2 : cellsPerPage - 1;
+                    const itemsForPage = remainingGroupItems.splice(0, availableSlots);
+                    let slotIndex = 0;
+
+                    for (const item of itemsForPage) {
+                        while (slotIndex < cellsPerPage) {
+                            const row = Math.floor(slotIndex / this.deviceSize.cols);
+                            const col = slotIndex % this.deviceSize.cols;
+
+                            if (page.layout[row][col] !== null) {
+                                slotIndex++;
+                                continue;
+                            }
+
+                            page.layout[row][col] = {
+                                type: 'entity',
+                                ...item.entity,
+                                entityId: item.entityId,
+                                style: item.style
+                            };
+                            slotIndex++;
+                            break;
+                        }
+                    }
+
+                    pages.push(page);
+                    groupPageIndex++;
                 }
             }
 
@@ -2366,47 +2530,87 @@ function styleEditor() {
         },
 
         /**
-         * Create pages for a group's entities
+         * Build folder sub-pages (separate from linear flow)
          */
-        createPagesForGroup(group, style) {
+        buildFolderSubPages(group) {
             const pages = [];
+            const style = this.getGroupStyle(group.name);
+            const cellsPerPage = this.deviceSize.cols * this.deviceSize.rows;
+            const folderNav = this.getFolderNavPositions();
+
             const entities = group.entities.map(id => this.getEntityById(id)).filter(Boolean);
-            const cellsPerPage = this.deviceSize.cols * this.deviceSize.rows - 1; // Reserve one for back button
+            let remainingEntities = [...entities];
+            let pageIndex = 0;
 
-            let currentEntities = [...entities];
-            let pageNum = 1;
-
-            while (currentEntities.length > 0) {
-                const pageEntities = currentEntities.splice(0, cellsPerPage);
+            while (remainingEntities.length > 0) {
                 const page = {
                     id: this.generateId(),
-                    name: pages.length === 0 ? group.name : `${group.name} ${pageNum}`,
-                    layout: this.createEmptyLayout(),
-                    isSubPage: group.displayType === 'folder'
+                    name: pageIndex === 0 ? group.name : `${group.name} ${pageIndex + 1}`,
+                    type: 'folder-sub',
+                    groupName: group.name,
+                    parentId: null, // Will be linked to main
+                    layout: this.createEmptyLayout()
                 };
 
-                let position = 0;
-                for (const entity of pageEntities) {
-                    const row = Math.floor(position / this.deviceSize.cols);
-                    const col = position % this.deviceSize.cols;
-                    page.layout[row][col] = {
-                        ...entity,
-                        style: style
+                // Folder up button always present
+                page.layout[folderNav.folderUp.row][folderNav.folderUp.col] = {
+                    type: 'folder-up',
+                    icon: 'mdi:arrow-up',
+                    label: '↑',
+                    targetPageId: null // Will be linked to main
+                };
+
+                // Check if we need next button
+                const needsNext = remainingEntities.length > (cellsPerPage - 2);
+                if (needsNext && folderNav.next) {
+                    page.layout[folderNav.next.row][folderNav.next.col] = {
+                        type: 'nav-next',
+                        icon: 'mdi:arrow-right',
+                        label: '→'
                     };
-                    position++;
                 }
 
-                // Add back button (for folder sub-pages)
-                if (group.displayType === 'folder') {
-                    const backPosition = this.getBackButtonPosition();
-                    page.layout[backPosition.row][backPosition.col] = {
-                        isBackButton: true,
-                        style: style
+                // Need prev if not first folder page
+                if (pageIndex > 0 && folderNav.prev) {
+                    page.layout[folderNav.prev.row][folderNav.prev.col] = {
+                        type: 'nav-prev',
+                        icon: 'mdi:arrow-left',
+                        label: '←'
                     };
+                }
+
+                // Calculate available slots
+                let reservedSlots = 1; // folder-up
+                if (needsNext) reservedSlots++;
+                if (pageIndex > 0) reservedSlots++;
+
+                const availableSlots = cellsPerPage - reservedSlots;
+                const entitiesForPage = remainingEntities.splice(0, availableSlots);
+                let slotIndex = 0;
+
+                for (const entity of entitiesForPage) {
+                    while (slotIndex < cellsPerPage) {
+                        const row = Math.floor(slotIndex / this.deviceSize.cols);
+                        const col = slotIndex % this.deviceSize.cols;
+
+                        if (page.layout[row][col] !== null) {
+                            slotIndex++;
+                            continue;
+                        }
+
+                        page.layout[row][col] = {
+                            type: 'entity',
+                            ...entity,
+                            entityId: entity.entity_id,
+                            style: style
+                        };
+                        slotIndex++;
+                        break;
+                    }
                 }
 
                 pages.push(page);
-                pageNum++;
+                pageIndex++;
             }
 
             return pages;
