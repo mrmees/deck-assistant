@@ -3321,6 +3321,8 @@ function styleEditor() {
                         let backgroundColor = this.ungroupedStyle.background;
                         let iconColor = '#FFFFFF';
                         let textColor = '#FFFFFF';
+                        let label = '';
+                        let subLabel = '';
 
                         if (cell.type === 'entity') {
                             // Look up current style from group or ungrouped
@@ -3330,10 +3332,29 @@ function styleEditor() {
 
                             const entity = this.getEntityById(cell.entityId);
                             backgroundColor = style.background;
+                            const labelStyle = style.labelStyle || 'name';
+
                             if (entity) {
                                 const categoryColor = this.getEntityCategoryColor(entity, style);
                                 iconColor = categoryColor;
                                 textColor = categoryColor;
+
+                                // Compute label based on labelStyle
+                                switch (labelStyle) {
+                                    case 'none':
+                                        label = '';
+                                        break;
+                                    case 'name':
+                                        label = entity.friendly_name || cell.entityId;
+                                        break;
+                                    case 'state':
+                                        label = entity.state || '';
+                                        break;
+                                    case 'name-and-state':
+                                        label = entity.friendly_name || cell.entityId;
+                                        subLabel = entity.state || '';
+                                        break;
+                                }
                             }
                         } else if (cell.type === 'folder') {
                             // Folder buttons use their group's background
@@ -3341,24 +3362,48 @@ function styleEditor() {
                             backgroundColor = style.background;
                             iconColor = '#FFFFFF';
                             textColor = '#FFFFFF';
+                            const labelStyle = style.labelStyle || 'name';
+                            const group = this.wizardSelections.groups.find(g => g.name === cell.groupName);
+                            const entityCount = group ? group.entities.length : 0;
+
+                            // Compute folder label based on labelStyle
+                            switch (labelStyle) {
+                                case 'none':
+                                    label = '';
+                                    break;
+                                case 'name':
+                                    label = cell.groupName;
+                                    break;
+                                case 'state':
+                                    label = `${entityCount} items`;
+                                    break;
+                                case 'name-and-state':
+                                    label = cell.groupName;
+                                    subLabel = `${entityCount} items`;
+                                    break;
+                            }
                         } else if (cell.type === 'nav-next' || cell.type === 'nav-prev' || cell.type === 'folder-up') {
                             // Navigation buttons use preset background with white icons
                             const preset = this.themePresets[this.currentPreset];
                             backgroundColor = preset.background;
                             iconColor = '#FFFFFF';
                             textColor = '#FFFFFF';
+                            label = cell.label || '';
                         }
 
                         buttons.push({
                             ...cell,
                             backgroundColor,
                             iconColor,
-                            textColor
+                            textColor,
+                            label,
+                            subLabel
                         });
                     } else {
                         buttons.push({
                             type: 'empty',
                             label: '',
+                            subLabel: '',
                             icon: '',
                             backgroundColor: '#2a2a2a',
                             iconColor: '#666',
