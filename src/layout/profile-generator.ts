@@ -8,6 +8,37 @@
 import { v4 as uuidv4 } from "uuid";
 import JSZip from "jszip";
 
+interface GroupStyle {
+    background: string;
+    onOff: string;
+    information: string;
+    trigger: string;
+}
+
+const ENTITY_CATEGORIES = {
+    controllable: [
+        'light', 'switch', 'cover', 'lock', 'fan', 'media_player',
+        'vacuum', 'climate', 'humidifier', 'water_heater', 'valve',
+        'siren', 'remote', 'button'
+    ],
+    informational: [
+        'sensor', 'binary_sensor', 'weather', 'sun', 'moon', 'calendar',
+        'device_tracker', 'person', 'zone'
+    ],
+    trigger: [
+        'script', 'scene', 'automation', 'input_boolean', 'input_button',
+        'input_number', 'input_select', 'input_text', 'input_datetime',
+        'timer', 'counter', 'schedule'
+    ]
+};
+
+const DEFAULT_GROUP_STYLE: GroupStyle = {
+    background: '#1a1a2e',
+    onOff: '#4CAF50',
+    information: '#2196F3',
+    trigger: '#FF9800'
+};
+
 interface EntityData {
     entity_id?: string;
     domain?: string;
@@ -48,6 +79,8 @@ interface ProfileConfig {
     };
     pages: PageData[];
     theme: ThemeConfig;
+    groupStyles?: Record<string, GroupStyle>;
+    ungroupedStyle?: GroupStyle;
 }
 
 interface ProfileAction {
@@ -77,6 +110,36 @@ function profileFolderId(profileId: string): string {
         .replace(/V/g, 'W')
         .replace(/U/g, 'V')
         + 'Z';
+}
+
+/**
+ * Get the category color for an entity based on its domain
+ */
+function getEntityCategoryColor(domain: string, style: GroupStyle): string {
+    if (ENTITY_CATEGORIES.controllable.includes(domain)) {
+        return style.onOff;
+    }
+    if (ENTITY_CATEGORIES.informational.includes(domain)) {
+        return style.information;
+    }
+    if (ENTITY_CATEGORIES.trigger.includes(domain)) {
+        return style.trigger;
+    }
+    return style.onOff; // Default to controllable color
+}
+
+/**
+ * Get the group style for an entity based on its groupName
+ */
+function getGroupStyle(
+    groupName: string | undefined,
+    groupStyles: Record<string, GroupStyle> | undefined,
+    ungroupedStyle: GroupStyle | undefined
+): GroupStyle {
+    if (!groupName || groupName === '__ungrouped__') {
+        return ungroupedStyle || DEFAULT_GROUP_STYLE;
+    }
+    return groupStyles?.[groupName] || DEFAULT_GROUP_STYLE;
 }
 
 /**
@@ -128,7 +191,7 @@ export async function generateProfile(config: ProfileConfig): Promise<{ data: st
                 const position = `${col},${row}`;
 
                 if (cell.type === 'entity' && cell.entity_id) {
-                    actions[position] = createEntityButtonAction(cell, config.theme);
+                    actions[position] = createEntityButtonAction(cell, config);
                 } else if (cell.type === 'folder') {
                     // Find target folder page
                     const targetPage = config.pages.find(p =>
@@ -260,12 +323,14 @@ function createNavigationAction(label: string, targetProfileUuid: string): Profi
  */
 function createEntityButtonAction(
     entity: EntityData,
-    theme: ThemeConfig
+    config: ProfileConfig
 ): ProfileAction {
     const domain = entity.domain || 'unknown';
-    const iconColor = entity.style?.iconColor || '#FFFFFF';
-    const textColor = entity.style?.textColor || iconColor; // Text matches icon
-    const backgroundColor = entity.style?.backgroundColor || theme.backgroundColor;
+    const style = getGroupStyle(entity.groupName, config.groupStyles, config.ungroupedStyle);
+    const categoryColor = getEntityCategoryColor(domain, style);
+    const iconColor = categoryColor;
+    const textColor = categoryColor;
+    const backgroundColor = style.background;
     const friendlyName = entity.friendly_name || entity.label || entity.entity_id || 'Entity';
 
     return {
