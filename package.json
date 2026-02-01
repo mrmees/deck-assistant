@@ -28,6 +28,7 @@
         "@rollup/plugin-node-resolve": "^16.0.3",
         "@rollup/plugin-typescript": "^12.3.0",
         "@types/node": "^20.19.30",
+        "@types/uuid": "^10.0.0",
         "@types/ws": "^8.18.1",
         "rollup": "^4.57.1",
         "tslib": "^2.8.1",
@@ -36,6 +37,8 @@
     "dependencies": {
         "@elgato/streamdeck": "^1.0.0",
         "home-assistant-js-websocket": "^9.6.0",
+        "jszip": "^3.10.1",
+        "uuid": "^13.0.0",
         "ws": "^8.19.0"
     }
 }

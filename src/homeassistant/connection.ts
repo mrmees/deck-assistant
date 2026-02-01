@@ -12,6 +12,7 @@ import {
 import {
   HAConfig,
   HAEntity,
+  HAFloor,
   HAArea,
   HADevice,
   HAEntityRegistryEntry,
@@ -28,6 +29,7 @@ export type ConnectionCallback = (state: ConnectionState) => void;
 export class HomeAssistantConnection {
   private connection: Connection | null = null;
   private entities: Record<string, HAEntity> = {};
+  private floors: HAFloor[] = [];
   private areas: HAArea[] = [];
   private devices: HADevice[] = [];
   private entityRegistry: HAEntityRegistryEntry[] = [];
@@ -63,8 +65,9 @@ export class HomeAssistantConnection {
         this.handleEntitiesUpdate(entities);
       });
 
-      // Fetch areas, devices, entity registry, and labels
+      // Fetch floors, areas, devices, entity registry, and labels
       await Promise.all([
+        this.fetchFloors(),
         this.fetchAreas(),
         this.fetchDevices(),
         this.fetchEntityRegistry(),
@@ -94,6 +97,7 @@ export class HomeAssistantConnection {
     }
 
     this.entities = {};
+    this.floors = [];
     this.areas = [];
     this.devices = [];
     this.entityRegistry = [];
@@ -129,6 +133,13 @@ export class HomeAssistantConnection {
    */
   getAllEntities(): Record<string, HAEntity> {
     return { ...this.entities };
+  }
+
+  /**
+   * Get all floors
+   */
+  getFloors(): HAFloor[] {
+    return [...this.floors];
   }
 
   /**
@@ -203,6 +214,26 @@ export class HomeAssistantConnection {
    */
   getConnectionState(): ConnectionState {
     return { ...this.connectionState };
+  }
+
+  /**
+   * Fetch floors from Home Assistant
+   */
+  private async fetchFloors(): Promise<void> {
+    if (!this.connection) {
+      return;
+    }
+
+    try {
+      const floors = await this.connection.sendMessagePromise<HAFloor[]>({
+        type: "config/floor_registry/list",
+      });
+      this.floors = floors || [];
+    } catch (error) {
+      // Floors are a newer HA feature, may not exist in older versions
+      console.error("Failed to fetch floors:", error);
+      this.floors = [];
+    }
   }
 
   /**
@@ -282,11 +313,17 @@ export class HomeAssistantConnection {
   }
 
   /**
-   * Create a new label in Home Assistant
+   * Create a new label in Home Assistant (or return existing one)
    */
   async createLabel(labelId: string, name: string): Promise<HALabel | null> {
     if (!this.connection) {
       throw new Error("Not connected to Home Assistant");
+    }
+
+    // Check if label already exists
+    const existingLabel = this.labels.find(l => l.name === name);
+    if (existingLabel) {
+      return existingLabel;
     }
 
     try {
@@ -300,6 +337,12 @@ export class HomeAssistantConnection {
 
       return result;
     } catch (error) {
+      // If label already exists (race condition), try to find and return it
+      await this.fetchLabels();
+      const label = this.labels.find(l => l.name === name);
+      if (label) {
+        return label;
+      }
       console.error("Failed to create label:", error);
       throw error;
     }
@@ -325,6 +368,127 @@ export class HomeAssistantConnection {
     } catch (error) {
       console.error(`Failed to assign labels to ${entityId}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Get entities used in Lovelace dashboards (flat list for filtering)
+   */
+  async getDashboardEntities(): Promise<string[]> {
+    const dashboardsWithEntities = await this.getDashboardsWithEntities();
+    const allEntityIds = new Set<string>();
+    for (const dashboard of dashboardsWithEntities) {
+      for (const entityId of dashboard.entities) {
+        allEntityIds.add(entityId);
+      }
+    }
+    return Array.from(allEntityIds);
+  }
+
+  /**
+   * Get dashboards with their associated entities (for grouping by dashboard)
+   */
+  async getDashboardsWithEntities(): Promise<Array<{ id: string; name: string; entities: string[] }>> {
+    if (!this.connection) {
+      return [];
+    }
+
+    const result: Array<{ id: string; name: string; entities: string[] }> = [];
+
+    try {
+      // Get list of dashboards
+      const dashboards = await this.connection.sendMessagePromise<Array<{ url_path: string | null; title?: string }>>({
+        type: "lovelace/dashboards/list",
+      });
+
+      // Fetch default dashboard (Overview)
+      try {
+        const defaultConfig = await this.connection.sendMessagePromise<any>({
+          type: "lovelace/config",
+        });
+        const entityIds = new Set<string>();
+        this.extractEntitiesFromConfig(defaultConfig, entityIds);
+        result.push({
+          id: '__default__',
+          name: defaultConfig.title || 'Overview',
+          entities: Array.from(entityIds)
+        });
+      } catch (e) {
+        // Default dashboard might not exist or use strategy mode
+      }
+
+      // Fetch each custom/user dashboard
+      for (const dashboard of dashboards || []) {
+        if (dashboard.url_path) {
+          try {
+            const config = await this.connection.sendMessagePromise<any>({
+              type: "lovelace/config",
+              url_path: dashboard.url_path,
+            });
+            const entityIds = new Set<string>();
+            this.extractEntitiesFromConfig(config, entityIds);
+            result.push({
+              id: dashboard.url_path,
+              name: config.title || dashboard.title || dashboard.url_path,
+              entities: Array.from(entityIds)
+            });
+          } catch (e) {
+            // Dashboard might use strategy mode or fail to load
+            // Still add it with 0 entities so user sees it
+            result.push({
+              id: dashboard.url_path,
+              name: dashboard.title || dashboard.url_path,
+              entities: []
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch dashboards with entities:", error);
+    }
+
+    return result;
+  }
+
+  /**
+   * Recursively extract entity IDs from a Lovelace config
+   */
+  private extractEntitiesFromConfig(config: any, entityIds: Set<string>): void {
+    if (!config || typeof config !== "object") return;
+
+    // Check for entity field
+    if (typeof config.entity === "string" && config.entity.includes(".")) {
+      entityIds.add(config.entity);
+    }
+
+    // Check for entities array
+    if (Array.isArray(config.entities)) {
+      for (const item of config.entities) {
+        if (typeof item === "string" && item.includes(".")) {
+          entityIds.add(item);
+        } else if (typeof item === "object" && item.entity) {
+          entityIds.add(item.entity);
+        }
+      }
+    }
+
+    // Check for cards array (views, stacks, etc.)
+    if (Array.isArray(config.cards)) {
+      for (const card of config.cards) {
+        this.extractEntitiesFromConfig(card, entityIds);
+      }
+    }
+
+    // Check for views array
+    if (Array.isArray(config.views)) {
+      for (const view of config.views) {
+        this.extractEntitiesFromConfig(view, entityIds);
+      }
+    }
+
+    // Check for card field (some wrapper cards)
+    if (config.card) {
+      this.extractEntitiesFromConfig(config.card, entityIds);
     }
   }
 

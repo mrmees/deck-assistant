@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(npm ls:*)",
+      "Bash(Get-ChildItem \"$env:APPDATA\\\\Elgato\\\\StreamDeck\\\\logs\" -Filter \"*.log\")",
+      "Bash(Sort-Object LastWriteTime -Descending)",
+      "Bash(Select-Object -First 3)",
+      "Bash(Get-Content $_FullName -Tail 100 })",
+      "Bash(cat:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(npm install:*)",
+      "Bash(ls:*)",
+      "WebFetch(domain:docs.elgato.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(cmd //c \"dir \"\"%APPDATA%\\\\Elgato\\\\StreamDeck\\\\Plugins\\\\com.deckassistant.sdPlugin\"\"\")",
+      "Bash(PLUGIN_PATH=\"$APPDATA/Elgato/StreamDeck/Plugins/com.deckassistant.sdPlugin\")",
+      "Bash(echo:*)",
+      "Bash(test:*)",
+      "WebFetch(domain:developers.home-assistant.io)",
+      "Bash(node --check:*)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

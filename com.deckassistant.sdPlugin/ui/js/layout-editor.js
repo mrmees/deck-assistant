@@ -274,7 +274,9 @@ function styleEditor() {
         domainColors: { ...DOMAIN_COLORS },
         theme: {
             backgroundColor: '#1C1C1C',
-            backButtonPosition: 'bottom-right'
+            backButtonPosition: 'bottom-right', // Legacy, keep for compatibility
+            navStartPosition: 'bottom-right',   // NEW: Linear nav ←/→ position
+            folderUpPosition: 'bottom-right',   // NEW: Folder up button position
         },
 
         // Style Editor State
@@ -2422,6 +2424,105 @@ function styleEditor() {
                 default:
                     return { row: maxRow, col: maxCol };
             }
+        },
+
+        /**
+         * Get navigation button positions based on settings
+         * @param {string} position - 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
+         * @returns {{ prev: {row, col}, next: {row, col} }}
+         */
+        getNavPositions(position) {
+            const lastRow = this.deviceSize.rows - 1;
+            const lastCol = this.deviceSize.cols - 1;
+
+            switch (position) {
+                case 'bottom-right':
+                    return {
+                        prev: { row: lastRow, col: lastCol - 1 },
+                        next: { row: lastRow, col: lastCol }
+                    };
+                case 'bottom-left':
+                    return {
+                        prev: { row: lastRow, col: 0 },
+                        next: { row: lastRow, col: 1 }
+                    };
+                case 'top-right':
+                    return {
+                        prev: { row: 0, col: lastCol - 1 },
+                        next: { row: 0, col: lastCol }
+                    };
+                case 'top-left':
+                    return {
+                        prev: { row: 0, col: 0 },
+                        next: { row: 0, col: 1 }
+                    };
+                default:
+                    return {
+                        prev: { row: lastRow, col: lastCol - 1 },
+                        next: { row: lastRow, col: lastCol }
+                    };
+            }
+        },
+
+        /**
+         * Get folder up button position
+         * @param {string} position - 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
+         * @returns {{ row: number, col: number }}
+         */
+        getFolderUpPosition(position) {
+            const lastRow = this.deviceSize.rows - 1;
+            const lastCol = this.deviceSize.cols - 1;
+
+            switch (position) {
+                case 'bottom-right':
+                    return { row: lastRow, col: lastCol };
+                case 'bottom-left':
+                    return { row: lastRow, col: 0 };
+                case 'top-right':
+                    return { row: 0, col: lastCol };
+                case 'top-left':
+                    return { row: 0, col: 0 };
+                default:
+                    return { row: lastRow, col: lastCol };
+            }
+        },
+
+        /**
+         * Get folder sub-page nav positions, accounting for folder-up priority
+         * @returns {{ folderUp: {row, col}, prev: {row, col}|null, next: {row, col}|null }}
+         */
+        getFolderNavPositions() {
+            const folderUp = this.getFolderUpPosition(this.theme.folderUpPosition);
+            const navPositions = this.getNavPositions(this.theme.navStartPosition);
+            const lastCol = this.deviceSize.cols - 1;
+
+            // Check for conflicts - folder up takes priority
+            let prev = navPositions.prev;
+            let next = navPositions.next;
+
+            // If folder up conflicts with next, shift nav inward
+            if (folderUp.row === next.row && folderUp.col === next.col) {
+                // Shift both prev and next one position inward
+                if (this.theme.navStartPosition.includes('right')) {
+                    next = { row: next.row, col: next.col - 1 };
+                    prev = prev.col > 0 ? { row: prev.row, col: prev.col - 1 } : null;
+                } else {
+                    next = { row: next.row, col: next.col + 1 };
+                    prev = prev.col < lastCol ? { row: prev.row, col: prev.col + 1 } : null;
+                }
+            }
+            // If folder up conflicts with prev, shift nav inward
+            else if (folderUp.row === prev.row && folderUp.col === prev.col) {
+                if (this.theme.navStartPosition.includes('right')) {
+                    next = { row: next.row, col: next.col - 1 };
+                    prev = prev.col > 0 ? { row: prev.row, col: prev.col - 1 } : null;
+                } else {
+                    next = { row: next.row, col: next.col + 1 };
+                    prev = prev.col < lastCol ? { row: prev.row, col: prev.col + 1 } : null;
+                }
+            }
+
+            return { folderUp, prev, next };
         },
 
         // ========== Label Helpers ==========

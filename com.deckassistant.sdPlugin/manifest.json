@@ -52,5 +52,9 @@
     "Version": "20",
     "Debug": "enabled"
   },
-  "UUID": "com.deckassistant"
+  "UUID": "com.deckassistant",
+  "DefaultWindowSize": [
+    1400,
+    900
+  ]
 }

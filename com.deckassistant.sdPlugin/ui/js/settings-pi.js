@@ -9,6 +9,12 @@ let uuid = null;
 let actionInfo = null;
 let globalSettings = {};
 
+// Store connection parameters for opening editor
+let connectionParams = {
+    port: null,
+    registerEvent: null
+};
+
 // DOM elements (cached after load)
 let elements = {};
 
@@ -32,7 +38,10 @@ function cacheElements() {
         connectBtn: document.getElementById("connect-btn"),
         disconnectBtn: document.getElementById("disconnect-btn"),
         connectionError: document.getElementById("connection-error"),
-        disableSdTitles: document.getElementById("disable-sd-titles")
+        disableSdTitles: document.getElementById("disable-sd-titles"),
+        openEditorBtn: document.getElementById("open-editor-btn"),
+        editorWindowSize: document.getElementById("editor-window-size"),
+        windowSizeMessage: document.getElementById("window-size-message")
     };
 }
 
@@ -48,6 +57,95 @@ function setupEventListeners() {
         globalSettings.disableSdTitles = this.checked;
         saveGlobalSettings();
     });
+
+    // Layout editor
+    elements.openEditorBtn.addEventListener("click", openStyleEditor);
+
+    // Editor window size
+    elements.editorWindowSize.addEventListener("change", handleWindowSizeChange);
+}
+
+/**
+ * Handle editor window size change
+ */
+function handleWindowSizeChange() {
+    const sizeValue = elements.editorWindowSize.value;
+    const [width, height] = sizeValue.split("x").map(Number);
+
+    // Save preference to global settings
+    globalSettings.editorWindowSize = sizeValue;
+    saveGlobalSettings();
+
+    // Tell plugin to update the manifest
+    sendToPlugin({
+        event: "updateWindowSize",
+        width: width,
+        height: height
+    });
+
+    // Show confirmation message
+    elements.windowSizeMessage.style.display = "block";
+}
+
+// Reference to the Style Editor window
+let styleEditorWindow = null;
+
+/**
+ * Open the style editor in a new window
+ */
+function openStyleEditor() {
+    if (!connectionParams.port) {
+        showError("Connection parameters not available");
+        return;
+    }
+
+    // Build the editor URL
+    const editorUrl = new URL("layout-editor.html", window.location.href);
+
+    // Open in a new window (larger size for style editing)
+    styleEditorWindow = window.open(editorUrl.toString(), "DeckAssistantStyleEditor", "width=1600,height=1000,menubar=no,toolbar=no,resizable=yes");
+
+    // Listen for messages from the Style Editor
+    window.addEventListener("message", handleStyleEditorMessage);
+}
+
+/**
+ * Handle messages from the Style Editor window
+ */
+function handleStyleEditorMessage(event) {
+    const message = event.data;
+    if (!message || !message.type) {
+        return;
+    }
+
+    // Only handle messages from our Style Editor
+    if (message.type === "styleEditorReady") {
+        console.log("Style Editor ready, sending connection info");
+        // Style Editor is ready, send connection status
+        if (styleEditorWindow && !styleEditorWindow.closed) {
+            styleEditorWindow.postMessage({
+                type: "connectionInfo",
+                connected: websocket && websocket.readyState === WebSocket.OPEN,
+                haConnected: true
+            }, "*");
+        }
+    } else if (message.type === "sendToPlugin") {
+        console.log("Forwarding to plugin:", message.payload);
+        // Forward message to plugin
+        sendToPlugin(message.payload);
+    }
+}
+
+/**
+ * Forward plugin responses to Style Editor
+ */
+function forwardToStyleEditor(payload) {
+    if (styleEditorWindow && !styleEditorWindow.closed) {
+        styleEditorWindow.postMessage({
+            type: "pluginMessage",
+            payload: payload
+        }, "*");
+    }
 }
 
 /**
@@ -57,6 +155,10 @@ function setupEventListeners() {
 function connectElgatoStreamDeckSocket(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inActionInfo) {
     uuid = inPropertyInspectorUUID;
     actionInfo = JSON.parse(inActionInfo);
+
+    // Store connection parameters for editor
+    connectionParams.port = inPort;
+    connectionParams.registerEvent = inRegisterEvent;
 
     // Connect to Stream Deck
     websocket = new WebSocket("ws://127.0.0.1:" + inPort);
@@ -122,6 +224,11 @@ function handleGlobalSettings() {
     // Display options
     elements.disableSdTitles.checked = globalSettings.disableSdTitles || false;
 
+    // Editor window size
+    if (globalSettings.editorWindowSize) {
+        elements.editorWindowSize.value = globalSettings.editorWindowSize;
+    }
+
     // Request current connection status from plugin
     sendToPlugin({ event: "getStatus" });
 }
@@ -133,6 +240,23 @@ function handlePluginMessage(payload) {
     switch (payload.event) {
         case "connectionStatus":
             updateConnectionStatus(payload.connected, payload.error);
+            break;
+
+        // Forward Style Editor related messages
+        case "deviceInfo":
+        case "entitiesData":
+        case "areasData":
+        case "floorsData":
+        case "labelsData":
+        case "dashboardEntitiesData":
+        case "dashboardsData":
+        case "fullRegistryData":
+        case "profileGenerated":
+        case "labelsSynced":
+        case "labelCreated":
+        case "labelsAssigned":
+        case "error":
+            forwardToStyleEditor(payload);
             break;
     }
 }

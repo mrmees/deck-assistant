@@ -152,16 +152,16 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
         await this.updateManifestWindowSize(width, height);
       }
     } else if (event === "getDeviceInfo") {
-      // Layout Editor requesting device info
+      // Style Editor requesting device info
       await this.handleGetDeviceInfo();
     } else if (event === "getEntities") {
-      // Layout Editor requesting entities
+      // Style Editor requesting entities
       await this.handleGetEntities();
     } else if (event === "getAreas") {
-      // Layout Editor requesting areas
+      // Style Editor requesting areas
       await this.handleGetAreas();
     } else if (event === "generateProfile") {
-      // Layout Editor requesting profile generation
+      // Style Editor requesting profile generation
       logger.info("generateProfile event received from PI");
       const config = payload?.config as JsonObject;
       if (config) {
@@ -169,14 +169,8 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
       } else {
         logger.error("generateProfile called but no config provided");
       }
-    } else if (event === "syncLabels") {
-      // Layout Editor requesting label sync
-      const labels = payload?.labels as JsonObject[];
-      if (labels) {
-        await this.handleSyncLabels(labels);
-      }
     } else if (event === "getLabels") {
-      // Layout Editor requesting labels
+      // Style Editor requesting labels
       await this.handleGetLabels();
     } else if (event === "createLabel") {
       const name = payload?.name as string;
@@ -189,11 +183,19 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
       if (entityId && labelIds) {
         await this.handleAssignLabels(entityId, labelIds);
       }
+    } else if (event === "getDashboardEntities") {
+      await this.handleGetDashboardEntities();
+    } else if (event === "getDashboards") {
+      await this.handleGetDashboards();
+    } else if (event === "getFloors") {
+      await this.handleGetFloors();
+    } else if (event === "getFullRegistry") {
+      await this.handleGetFullRegistry();
     }
   }
 
   /**
-   * Handle getDeviceInfo request from Layout Editor
+   * Handle getDeviceInfo request from Style Editor
    */
   private async handleGetDeviceInfo(): Promise<void> {
     const allDevices = getAllConnectedDevices();
@@ -216,7 +218,7 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
   }
 
   /**
-   * Handle getEntities request from Layout Editor
+   * Handle getEntities request from Style Editor
    */
   private async handleGetEntities(): Promise<void> {
     if (!haConnection.isConnected()) {
@@ -271,6 +273,8 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
           friendly_name: entity.attributes?.friendly_name || entity.entity_id,
           area_id: area_id,
           state: entity.state,
+          device_class: entity.attributes?.device_class || null,
+          icon: entity.attributes?.icon || null,
         };
       });
 
@@ -288,7 +292,7 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
   }
 
   /**
-   * Handle getAreas request from Layout Editor
+   * Handle getAreas request from Style Editor
    */
   private async handleGetAreas(): Promise<void> {
     if (!haConnection.isConnected()) {
@@ -300,13 +304,14 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
     }
 
     try {
-      const areas = await haConnection.getAreas();
+      const areas = haConnection.getAreas();
 
       await streamDeck.ui.current?.sendToPropertyInspector({
         event: "areasData",
         areas: areas.map(area => ({
           area_id: area.area_id,
           name: area.name,
+          floor_id: area.floor_id,
         })),
       });
     } catch (error) {
@@ -319,7 +324,7 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
   }
 
   /**
-   * Handle generateProfile request from Layout Editor
+   * Handle generateProfile request from Style Editor
    */
   private async handleGenerateProfile(config: JsonObject): Promise<void> {
     logger.info("handleGenerateProfile called");
@@ -347,52 +352,17 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
         filename: result.filename,
       });
     } catch (error) {
-      logger.error(`Failed to generate profile: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to generate profile: ${errorMessage}`);
       await streamDeck.ui.current?.sendToPropertyInspector({
         event: "error",
-        message: `Failed to generate profile: ${error}`,
+        message: `Failed to generate profile: ${errorMessage}`,
       });
     }
   }
 
   /**
-   * Handle syncLabels request from Layout Editor
-   */
-  private async handleSyncLabels(labels: JsonObject[]): Promise<void> {
-    if (!haConnection.isConnected()) {
-      await streamDeck.ui.current?.sendToPropertyInspector({
-        event: "error",
-        message: "Not connected to Home Assistant",
-      });
-      return;
-    }
-
-    try {
-      // Sync labels to Home Assistant
-      // Note: This requires the HA API to support label updates
-      // For now, we'll just log and confirm
-      logger.info(`Would sync ${labels.length} labels to Home Assistant`);
-
-      // TODO: Implement actual label sync when HA API supports it
-      // for (const labelData of labels) {
-      //   await haConnection.setEntityLabel(labelData.entityId, labelData.label);
-      // }
-
-      await streamDeck.ui.current?.sendToPropertyInspector({
-        event: "labelsSynced",
-        count: labels.length,
-      });
-    } catch (error) {
-      logger.error(`Failed to sync labels: ${error}`);
-      await streamDeck.ui.current?.sendToPropertyInspector({
-        event: "error",
-        message: `Failed to sync labels: ${error}`,
-      });
-    }
-  }
-
-  /**
-   * Handle getLabels request from Layout Editor
+   * Handle getLabels request from Style Editor
    */
   private async handleGetLabels(): Promise<void> {
     if (!haConnection.isConnected()) {
@@ -427,7 +397,7 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
   }
 
   /**
-   * Handle createLabel request from Layout Editor
+   * Handle createLabel request from Style Editor
    */
   private async handleCreateLabel(name: string): Promise<void> {
     if (!haConnection.isConnected()) {
@@ -446,16 +416,17 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
         label: label as unknown as JsonValue,
       } as JsonObject);
     } catch (error) {
-      logger.error(`Failed to create label: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to create label: ${errorMessage}`);
       await streamDeck.ui.current?.sendToPropertyInspector({
         event: "error",
-        message: `Failed to create label: ${error}`,
+        message: `Failed to create label: ${errorMessage}`,
       });
     }
   }
 
   /**
-   * Handle assignLabels request from Layout Editor
+   * Handle assignLabels request from Style Editor
    */
   private async handleAssignLabels(entityId: string, labelIds: string[]): Promise<void> {
     if (!haConnection.isConnected()) {
@@ -475,10 +446,156 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
         labelIds: labelIds,
       });
     } catch (error) {
-      logger.error(`Failed to assign labels: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to assign labels: ${errorMessage}`);
       await streamDeck.ui.current?.sendToPropertyInspector({
         event: "error",
-        message: `Failed to assign labels: ${error}`,
+        message: `Failed to assign labels: ${errorMessage}`,
+      });
+    }
+  }
+
+  /**
+   * Handle getDashboardEntities request from Style Editor
+   */
+  private async handleGetDashboardEntities(): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "dashboardEntitiesData",
+        entities: [],
+      });
+      return;
+    }
+
+    try {
+      const entities = await haConnection.getDashboardEntities();
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "dashboardEntitiesData",
+        entities: entities,
+      });
+    } catch (error) {
+      logger.error(`Failed to get dashboard entities: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "dashboardEntitiesData",
+        entities: [],
+      });
+    }
+  }
+
+  /**
+   * Handle getDashboards request from Style Editor (dashboards with their entities)
+   */
+  private async handleGetDashboards(): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "dashboardsData",
+        dashboards: [],
+      });
+      return;
+    }
+
+    try {
+      const dashboards = await haConnection.getDashboardsWithEntities();
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "dashboardsData",
+        dashboards: dashboards,
+      });
+    } catch (error) {
+      logger.error(`Failed to get dashboards: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "dashboardsData",
+        dashboards: [],
+      });
+    }
+  }
+
+  /**
+   * Handle getFloors request from Style Editor
+   */
+  private async handleGetFloors(): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "floorsData",
+        floors: [],
+      });
+      return;
+    }
+
+    try {
+      const floors = haConnection.getFloors();
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "floorsData",
+        floors: floors.map(floor => ({
+          floor_id: floor.floor_id,
+          name: floor.name,
+          level: floor.level,
+        })),
+      });
+    } catch (error) {
+      logger.error(`Failed to get floors: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "floorsData",
+        floors: [],
+      });
+    }
+  }
+
+  /**
+   * Handle getFullRegistry request - returns all registry data for advanced grouping
+   */
+  private async handleGetFullRegistry(): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "fullRegistryData",
+        entityRegistry: [],
+        devices: [],
+        labels: [],
+      });
+      return;
+    }
+
+    try {
+      const entityRegistry = haConnection.getEntityRegistry();
+      const devices = haConnection.getDeviceRegistry();
+      const labels = haConnection.getLabels();
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "fullRegistryData",
+        entityRegistry: entityRegistry.map(entry => ({
+          entity_id: entry.entity_id,
+          device_id: entry.device_id,
+          area_id: entry.area_id,
+          platform: entry.platform,
+          labels: entry.labels || [],
+          disabled_by: entry.disabled_by,
+          hidden_by: entry.hidden_by,
+          entity_category: entry.entity_category,
+        })),
+        devices: devices.map(device => ({
+          id: device.id,
+          name: device.name_by_user || device.name,
+          area_id: device.area_id,
+          manufacturer: device.manufacturer,
+          model: device.model,
+          labels: device.labels || [],
+        })),
+        labels: labels.map(label => ({
+          label_id: label.label_id,
+          name: label.name,
+          color: label.color,
+          icon: label.icon,
+        })),
+      } as JsonObject);
+    } catch (error) {
+      logger.error(`Failed to get full registry: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "fullRegistryData",
+        entityRegistry: [],
+        devices: [],
+        labels: [],
       });
     }
   }

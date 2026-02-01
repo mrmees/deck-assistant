@@ -44,6 +44,30 @@
     </div>
 
     <div class="section">
+        <div class="section-title">Profile Generator</div>
+
+        <div class="field">
+            <button id="open-editor-btn" class="btn-primary">Open Style Editor</button>
+        </div>
+        <div class="help-text-inline">
+            Opens the style editor in a new window.
+        </div>
+
+        <div class="field" style="margin-top: 12px;">
+            <label for="editor-window-size">Editor Window Size</label>
+            <select id="editor-window-size">
+                <option value="1400x900">Standard (1400 x 900)</option>
+                <option value="1600x1000" selected>Large (1600 x 1000)</option>
+                <option value="1800x1050">Extra Large (1800 x 1050)</option>
+                <option value="1920x1080">Full HD (1920 x 1080)</option>
+            </select>
+        </div>
+        <div id="window-size-message" class="help-text-inline" style="color: #4caf50; display: none;">
+            Window size updated. Restart Stream Deck to apply.
+        </div>
+    </div>
+
+    <div class="section">
         <div class="section-title">Display Options</div>
 
         <div class="field">

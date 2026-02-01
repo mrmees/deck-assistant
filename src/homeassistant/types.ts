@@ -12,16 +12,28 @@ export interface HAEntity {
   last_updated: string;
 }
 
+export interface HAFloor {
+  floor_id: string;
+  name: string;
+  level?: number;
+  icon?: string;
+}
+
 export interface HAArea {
   area_id: string;
   name: string;
   picture?: string;
+  floor_id?: string;
 }
 
 export interface HADevice {
   id: string;
   name: string;
+  name_by_user?: string;
   area_id?: string;
+  manufacturer?: string;
+  model?: string;
+  labels?: string[];
 }
 
 export interface HAEntityRegistryEntry {
@@ -32,6 +44,9 @@ export interface HAEntityRegistryEntry {
   icon?: string;
   platform: string;
   labels?: string[];
+  disabled_by?: string | null;
+  hidden_by?: string | null;
+  entity_category?: string | null; // "config" | "diagnostic" | null (primary)
 }
 
 export interface HALabel {
