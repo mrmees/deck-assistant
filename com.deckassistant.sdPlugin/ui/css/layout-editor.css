@@ -1652,6 +1652,27 @@ body {
     text-transform: capitalize;
 }
 
+.style-group-type-select {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #0078d4;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    text-transform: capitalize;
+    margin-left: auto;
+}
+
+.style-group-type-select:hover {
+    background: #006cbd;
+}
+
+.style-group-type-select option {
+    background: #333;
+    color: #fff;
+}
+
 .style-group-content {
     border-top: 1px solid #333;
     padding: 12px;

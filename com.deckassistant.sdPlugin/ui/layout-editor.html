@@ -52,11 +52,18 @@
                         <!-- Groups -->
                         <template x-for="(group, index) in wizardSelections.groups" :key="group.name">
                             <div class="style-group-item">
-                                <div class="style-group-header" @click="toggleGroupExpanded(index)">
-                                    <span class="style-group-expand" x-text="group.expanded ? '▼' : '▶'"></span>
-                                    <span class="style-group-name" x-text="group.name"></span>
-                                    <span class="style-group-count" x-text="group.entities.length"></span>
-                                    <span class="style-group-type" x-text="group.displayType"></span>
+                                <div class="style-group-header">
+                                    <span class="style-group-expand" @click="toggleGroupExpanded(index)" x-text="group.expanded ? '▼' : '▶'"></span>
+                                    <span class="style-group-name" @click="toggleGroupExpanded(index)" x-text="group.name"></span>
+                                    <span class="style-group-count" @click="toggleGroupExpanded(index)" x-text="group.entities.length"></span>
+                                    <select class="style-group-type-select"
+                                            :value="group.displayType"
+                                            @click.stop
+                                            @change="setGroupDisplayType(group.name, $event.target.value); refreshPreviewPages()">
+                                        <option value="folder">Folder</option>
+                                        <option value="flat">Flat</option>
+                                        <option value="page">Page</option>
+                                    </select>
                                 </div>
 
                                 <template x-if="group.expanded">
