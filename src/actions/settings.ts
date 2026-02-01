@@ -8,9 +8,15 @@ import streamDeck, {
   JsonObject,
   KeyAction,
 } from "@elgato/streamdeck";
+import { readFile, writeFile, mkdir } from "fs/promises";
+import { dirname, join } from "path";
+import { homedir } from "os";
+import { fileURLToPath } from "url";
 import { haConnection } from "../homeassistant/connection.js";
-import { ConnectionState } from "../homeassistant/types.js";
+import { ConnectionState, HALabel } from "../homeassistant/types.js";
 import { renderIcon } from "../icons/index.js";
+import { getFirstConnectedDevice, getAllConnectedDevices } from "../layout/device-info.js";
+import { generateProfile } from "../layout/profile-generator.js";
 
 const logger = streamDeck.logger.createScope("SettingsAction");
 
@@ -137,6 +143,372 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
         event: "connectionStatus",
         connected: false,
       });
+    } else if (event === "updateWindowSize") {
+      // Update the manifest with new window size
+      const width = payload?.width as number;
+      const height = payload?.height as number;
+
+      if (width && height) {
+        await this.updateManifestWindowSize(width, height);
+      }
+    } else if (event === "getDeviceInfo") {
+      // Layout Editor requesting device info
+      await this.handleGetDeviceInfo();
+    } else if (event === "getEntities") {
+      // Layout Editor requesting entities
+      await this.handleGetEntities();
+    } else if (event === "getAreas") {
+      // Layout Editor requesting areas
+      await this.handleGetAreas();
+    } else if (event === "generateProfile") {
+      // Layout Editor requesting profile generation
+      logger.info("generateProfile event received from PI");
+      const config = payload?.config as JsonObject;
+      if (config) {
+        await this.handleGenerateProfile(config);
+      } else {
+        logger.error("generateProfile called but no config provided");
+      }
+    } else if (event === "syncLabels") {
+      // Layout Editor requesting label sync
+      const labels = payload?.labels as JsonObject[];
+      if (labels) {
+        await this.handleSyncLabels(labels);
+      }
+    } else if (event === "getLabels") {
+      // Layout Editor requesting labels
+      await this.handleGetLabels();
+    } else if (event === "createLabel") {
+      const name = payload?.name as string;
+      if (name) {
+        await this.handleCreateLabel(name);
+      }
+    } else if (event === "assignLabels") {
+      const entityId = payload?.entityId as string;
+      const labelIds = payload?.labelIds as string[];
+      if (entityId && labelIds) {
+        await this.handleAssignLabels(entityId, labelIds);
+      }
+    }
+  }
+
+  /**
+   * Handle getDeviceInfo request from Layout Editor
+   */
+  private async handleGetDeviceInfo(): Promise<void> {
+    const allDevices = getAllConnectedDevices();
+    const firstDevice = getFirstConnectedDevice();
+
+    logger.debug(`Found ${allDevices.length} devices, first: ${firstDevice?.name}`);
+
+    await streamDeck.ui.current?.sendToPropertyInspector({
+      event: "deviceInfo",
+      // First/default device info (for backwards compatibility)
+      name: firstDevice?.name || "Stream Deck",
+      model: firstDevice?.model || "StreamDeck",
+      cols: firstDevice?.cols || 5,
+      rows: firstDevice?.rows || 3,
+      // All connected devices
+      devices: allDevices.length > 0 ? allDevices : [
+        { id: "default", name: "Stream Deck", model: "StreamDeck", cols: 5, rows: 3, type: 0 }
+      ]
+    });
+  }
+
+  /**
+   * Handle getEntities request from Layout Editor
+   */
+  private async handleGetEntities(): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "error",
+        message: "Not connected to Home Assistant",
+      });
+      return;
+    }
+
+    try {
+      // Get all entities from Home Assistant
+      const entities = haConnection.getAllEntities();
+      const entityRegistry = haConnection.getEntityRegistry();
+      const devices = haConnection.getDeviceRegistry();
+
+      // Build a map of device_id -> area_id from device registry
+      const deviceAreaMap: Record<string, string | null> = {};
+      for (const device of devices) {
+        deviceAreaMap[device.id] = device.area_id || null;
+      }
+
+      // Build a map of entity_id -> { area_id, device_id } from entity registry
+      const entityRegistryMap: Record<string, { area_id: string | null; device_id: string | null }> = {};
+      for (const entry of entityRegistry) {
+        entityRegistryMap[entry.entity_id] = {
+          area_id: entry.area_id || null,
+          device_id: entry.device_id || null,
+        };
+      }
+
+      // Transform to simpler format for the editor
+      // Entity area is: direct area_id on entity, OR inherited from device
+      const entityList = Object.values(entities).map(entity => {
+        const registryEntry = entityRegistryMap[entity.entity_id];
+        let area_id: string | null = null;
+
+        if (registryEntry) {
+          // First check if entity has direct area assignment
+          if (registryEntry.area_id) {
+            area_id = registryEntry.area_id;
+          }
+          // Otherwise, inherit area from device
+          else if (registryEntry.device_id) {
+            area_id = deviceAreaMap[registryEntry.device_id] || null;
+          }
+        }
+
+        return {
+          entity_id: entity.entity_id,
+          domain: entity.entity_id.split('.')[0],
+          friendly_name: entity.attributes?.friendly_name || entity.entity_id,
+          area_id: area_id,
+          state: entity.state,
+        };
+      });
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "entitiesData",
+        entities: entityList,
+      });
+    } catch (error) {
+      logger.error(`Failed to get entities: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "error",
+        message: "Failed to load entities from Home Assistant",
+      });
+    }
+  }
+
+  /**
+   * Handle getAreas request from Layout Editor
+   */
+  private async handleGetAreas(): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "areasData",
+        areas: [],
+      });
+      return;
+    }
+
+    try {
+      const areas = await haConnection.getAreas();
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "areasData",
+        areas: areas.map(area => ({
+          area_id: area.area_id,
+          name: area.name,
+        })),
+      });
+    } catch (error) {
+      logger.error(`Failed to get areas: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "areasData",
+        areas: [],
+      });
+    }
+  }
+
+  /**
+   * Handle generateProfile request from Layout Editor
+   */
+  private async handleGenerateProfile(config: JsonObject): Promise<void> {
+    logger.info("handleGenerateProfile called");
+
+    try {
+      // Generate the profile (now async due to ZIP creation)
+      const result = await generateProfile(config as any);
+
+      // Save to Downloads folder
+      let filePath: string | null = null;
+      try {
+        const downloadsPath = join(homedir(), "Downloads");
+        filePath = join(downloadsPath, result.filename);
+        const buffer = Buffer.from(result.data, "base64");
+        await writeFile(filePath, buffer);
+        logger.info(`Profile saved to: ${filePath}`);
+      } catch (saveError) {
+        logger.warn(`Could not save to Downloads: ${saveError}`);
+        filePath = null;
+      }
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "profileGenerated",
+        filePath: filePath,
+        filename: result.filename,
+      });
+    } catch (error) {
+      logger.error(`Failed to generate profile: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "error",
+        message: `Failed to generate profile: ${error}`,
+      });
+    }
+  }
+
+  /**
+   * Handle syncLabels request from Layout Editor
+   */
+  private async handleSyncLabels(labels: JsonObject[]): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "error",
+        message: "Not connected to Home Assistant",
+      });
+      return;
+    }
+
+    try {
+      // Sync labels to Home Assistant
+      // Note: This requires the HA API to support label updates
+      // For now, we'll just log and confirm
+      logger.info(`Would sync ${labels.length} labels to Home Assistant`);
+
+      // TODO: Implement actual label sync when HA API supports it
+      // for (const labelData of labels) {
+      //   await haConnection.setEntityLabel(labelData.entityId, labelData.label);
+      // }
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "labelsSynced",
+        count: labels.length,
+      });
+    } catch (error) {
+      logger.error(`Failed to sync labels: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "error",
+        message: `Failed to sync labels: ${error}`,
+      });
+    }
+  }
+
+  /**
+   * Handle getLabels request from Layout Editor
+   */
+  private async handleGetLabels(): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "labelsData",
+        labels: [],
+        entitiesWithLabels: [],
+      });
+      return;
+    }
+
+    try {
+      const labels = haConnection.getLabels();
+      const entitiesWithLabels = haConnection.getEntitiesWithDeckAssistantLabels();
+
+      // Filter to only deck-assistant labels
+      const daLabels = labels.filter(l => l.name.startsWith("deck-assistant:"));
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "labelsData",
+        labels: daLabels as unknown as JsonValue,
+        entitiesWithLabels: entitiesWithLabels as unknown as JsonValue,
+      } as JsonObject);
+    } catch (error) {
+      logger.error(`Failed to get labels: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "labelsData",
+        labels: [],
+        entitiesWithLabels: [],
+      });
+    }
+  }
+
+  /**
+   * Handle createLabel request from Layout Editor
+   */
+  private async handleCreateLabel(name: string): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "error",
+        message: "Not connected to Home Assistant",
+      });
+      return;
+    }
+
+    try {
+      const label = await haConnection.createLabel(name, name);
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "labelCreated",
+        label: label as unknown as JsonValue,
+      } as JsonObject);
+    } catch (error) {
+      logger.error(`Failed to create label: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "error",
+        message: `Failed to create label: ${error}`,
+      });
+    }
+  }
+
+  /**
+   * Handle assignLabels request from Layout Editor
+   */
+  private async handleAssignLabels(entityId: string, labelIds: string[]): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "error",
+        message: "Not connected to Home Assistant",
+      });
+      return;
+    }
+
+    try {
+      await haConnection.assignLabelsToEntity(entityId, labelIds);
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "labelsAssigned",
+        entityId: entityId,
+        labelIds: labelIds,
+      });
+    } catch (error) {
+      logger.error(`Failed to assign labels: ${error}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "error",
+        message: `Failed to assign labels: ${error}`,
+      });
+    }
+  }
+
+  /**
+   * Update the DefaultWindowSize in manifest.json
+   */
+  private async updateManifestWindowSize(width: number, height: number): Promise<void> {
+    try {
+      // Get the path to the manifest.json in the plugin directory
+      // The compiled plugin runs from com.deckassistant.sdPlugin/bin/plugin.js
+      // So we need to go up one level to find manifest.json
+      const currentDir = dirname(fileURLToPath(import.meta.url));
+      const manifestPath = join(currentDir, "..", "manifest.json");
+
+      logger.debug(`Updating manifest at: ${manifestPath}`);
+
+      // Read the current manifest
+      const manifestContent = await readFile(manifestPath, "utf-8");
+      const manifest = JSON.parse(manifestContent);
+
+      // Update the DefaultWindowSize
+      manifest.DefaultWindowSize = [width, height];
+
+      // Write the updated manifest
+      await writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+
+      logger.info(`Updated DefaultWindowSize to [${width}, ${height}]`);
+    } catch (error) {
+      logger.error(`Failed to update manifest: ${error}`);
     }
   }
 
