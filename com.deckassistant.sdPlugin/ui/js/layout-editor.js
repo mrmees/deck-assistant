@@ -26,6 +26,31 @@ const DOMAIN_COLORS = {
     camera: '#00BCD4',
 };
 
+// Entity categories for theming
+const ENTITY_CATEGORIES = {
+    controllable: [
+        'light', 'switch', 'cover', 'lock', 'fan', 'media_player',
+        'vacuum', 'climate', 'humidifier', 'water_heater', 'valve',
+        'siren', 'remote', 'button'
+    ],
+    informational: [
+        'sensor', 'binary_sensor', 'weather', 'sun', 'moon', 'calendar',
+        'device_tracker', 'person', 'zone'
+    ],
+    trigger: [
+        'script', 'scene', 'automation', 'input_boolean', 'input_button',
+        'input_number', 'input_select', 'input_text', 'input_datetime',
+        'timer', 'counter', 'schedule'
+    ]
+};
+
+// Default category colors
+const DEFAULT_CATEGORY_COLORS = {
+    onOff: '#4CAF50',       // Green for controllable
+    information: '#2196F3', // Blue for sensors
+    trigger: '#FF9800'      // Orange for automations
+};
+
 // Bundled MDI icon paths (same as src/icons/mdi-bundled.ts)
 const BUNDLED_ICONS = {
     // Lights
@@ -750,6 +775,47 @@ function styleEditor() {
             const name = entity.friendly_name || entity.entity_id;
             // Truncate long names
             return name.length > 10 ? name.substring(0, 9) + '…' : name;
+        },
+
+        /**
+         * Get the category for an entity based on its domain
+         * @returns 'controllable' | 'informational' | 'trigger'
+         */
+        getEntityCategory(entity) {
+            if (!entity || !entity.domain) return 'controllable';
+
+            const domain = entity.domain;
+
+            if (ENTITY_CATEGORIES.controllable.includes(domain)) {
+                return 'controllable';
+            }
+            if (ENTITY_CATEGORIES.informational.includes(domain)) {
+                return 'informational';
+            }
+            if (ENTITY_CATEGORIES.trigger.includes(domain)) {
+                return 'trigger';
+            }
+
+            // Default to controllable for unknown domains
+            return 'controllable';
+        },
+
+        /**
+         * Get the icon/text color for an entity based on its category and group style
+         */
+        getEntityCategoryColor(entity, groupStyle) {
+            const category = this.getEntityCategory(entity);
+
+            switch (category) {
+                case 'controllable':
+                    return groupStyle.onOffColor || DEFAULT_CATEGORY_COLORS.onOff;
+                case 'informational':
+                    return groupStyle.informationColor || DEFAULT_CATEGORY_COLORS.information;
+                case 'trigger':
+                    return groupStyle.triggerColor || DEFAULT_CATEGORY_COLORS.trigger;
+                default:
+                    return groupStyle.onOffColor || DEFAULT_CATEGORY_COLORS.onOff;
+            }
         },
 
         handleCellClick(col, row) {
