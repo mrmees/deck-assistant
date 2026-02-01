@@ -307,6 +307,7 @@ function styleEditor() {
         // Style Editor State
         groupStyles: {}, // { groupName: { background, onOff, information, trigger } }
         ungroupedStyle: {
+            preset: null,
             background: '#1a1a2e',
             onOff: '#4CAF50',
             information: '#2196F3',
@@ -3059,6 +3060,7 @@ function styleEditor() {
             const style = this.groupStyles[groupName];
             if (style) return style;
             return {
+                preset: null,
                 background: '#1a1a2e',
                 onOff: '#4CAF50',
                 information: '#2196F3',
@@ -3074,6 +3076,10 @@ function styleEditor() {
                 this.groupStyles[groupName] = this.getGroupStyle(groupName);
             }
             this.groupStyles[groupName][prop] = value;
+            // Clear preset when manually changing a color (now custom)
+            if (prop !== 'preset') {
+                this.groupStyles[groupName].preset = null;
+            }
         },
 
         /**
@@ -3390,6 +3396,7 @@ function styleEditor() {
             if (groupName === '__ungrouped__') {
                 // Apply to ungrouped only
                 this.ungroupedStyle = {
+                    preset: presetName,
                     background: preset.background,
                     onOff: preset.onOff,
                     information: preset.information,
@@ -3398,6 +3405,7 @@ function styleEditor() {
             } else if (groupName) {
                 // Apply to specific group
                 this.groupStyles[groupName] = {
+                    preset: presetName,
                     background: preset.background,
                     onOff: preset.onOff,
                     information: preset.information,
@@ -3409,6 +3417,7 @@ function styleEditor() {
 
                 for (const group of this.wizardSelections.groups || []) {
                     this.groupStyles[group.name] = {
+                        preset: presetName,
                         background: preset.background,
                         onOff: preset.onOff,
                         information: preset.information,
@@ -3417,6 +3426,7 @@ function styleEditor() {
                 }
 
                 this.ungroupedStyle = {
+                    preset: presetName,
                     background: preset.background,
                     onOff: preset.onOff,
                     information: preset.information,
