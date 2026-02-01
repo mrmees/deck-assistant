@@ -3071,7 +3071,7 @@ function styleEditor() {
          */
         setGroupStyleProp(groupName, prop, value) {
             if (!this.groupStyles[groupName]) {
-                this.getGroupStyle(groupName); // Initialize
+                this.groupStyles[groupName] = this.getGroupStyle(groupName);
             }
             this.groupStyles[groupName][prop] = value;
         },
