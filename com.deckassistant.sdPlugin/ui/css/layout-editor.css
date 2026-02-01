@@ -1934,3 +1934,18 @@ body {
     font-size: 10px;
     color: #aaa;
 }
+
+.style-select {
+    background: #333;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    padding: 4px 8px;
+    font-size: 11px;
+    flex: 1;
+}
+
+.style-select:focus {
+    outline: none;
+    border-color: #0078d4;
+}

@@ -3384,7 +3384,7 @@ function styleEditor() {
             const preset = this.themePresets[presetName];
             if (!preset) return;
 
-            if (groupName === 'ungrouped') {
+            if (groupName === '__ungrouped__') {
                 this.ungroupedStyle = {
                     background: preset.background,
                     onOff: preset.onOff,
