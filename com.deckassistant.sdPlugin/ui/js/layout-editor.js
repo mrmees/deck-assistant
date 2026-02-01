@@ -2487,14 +2487,24 @@ function styleEditor() {
                                 icon: 'mdi:folder',
                                 groupName: item.group.name,
                                 targetPageId: null, // Will be linked later
-                                style: item.style
+                                style: {
+                                    backgroundColor: item.style.background,
+                                    iconColor: '#FFFFFF',
+                                    textColor: '#FFFFFF'
+                                }
                             };
                         } else {
+                            // Compute category-based colors for this entity
+                            const categoryColor = this.getEntityCategoryColor(item.entity, item.style);
                             page.layout[row][col] = {
                                 type: 'entity',
                                 ...item.entity,
                                 entityId: item.entityId,
-                                style: item.style
+                                style: {
+                                    backgroundColor: item.style.background,
+                                    iconColor: categoryColor,
+                                    textColor: categoryColor
+                                }
                             };
                         }
                         slotIndex++;
@@ -2556,11 +2566,17 @@ function styleEditor() {
                                 continue;
                             }
 
+                            // Compute category-based colors for this entity
+                            const categoryColor = this.getEntityCategoryColor(item.entity, item.style);
                             page.layout[row][col] = {
                                 type: 'entity',
                                 ...item.entity,
                                 entityId: item.entityId,
-                                style: item.style
+                                style: {
+                                    backgroundColor: item.style.background,
+                                    iconColor: categoryColor,
+                                    textColor: categoryColor
+                                }
                             };
                             slotIndex++;
                             break;
@@ -2644,11 +2660,17 @@ function styleEditor() {
                             continue;
                         }
 
+                        // Compute category-based colors for this entity
+                        const categoryColor = this.getEntityCategoryColor(entity, style);
                         page.layout[row][col] = {
                             type: 'entity',
                             ...entity,
                             entityId: entity.entity_id,
-                            style: style
+                            style: {
+                                backgroundColor: style.background,
+                                iconColor: categoryColor,
+                                textColor: categoryColor
+                            }
                         };
                         slotIndex++;
                         break;
