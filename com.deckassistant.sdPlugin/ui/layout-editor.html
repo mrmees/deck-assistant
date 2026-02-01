@@ -237,7 +237,8 @@
 
                             <div class="setting-row">
                                 <label class="setting-label">Nav Buttons</label>
-                                <select class="setting-select" x-model="theme.navStartPosition">
+                                <select class="setting-select" x-model="theme.navStartPosition"
+                                        @change="refreshPreviewPages()">
                                     <option value="bottom-right">Bottom Right</option>
                                     <option value="bottom-left">Bottom Left</option>
                                     <option value="top-right">Top Right</option>
@@ -247,7 +248,8 @@
 
                             <div class="setting-row">
                                 <label class="setting-label">Folder Up</label>
-                                <select class="setting-select" x-model="theme.folderUpPosition">
+                                <select class="setting-select" x-model="theme.folderUpPosition"
+                                        @change="refreshPreviewPages()">
                                     <option value="bottom-right">Bottom Right</option>
                                     <option value="bottom-left">Bottom Left</option>
                                     <option value="top-right">Top Right</option>
