@@ -2345,14 +2345,13 @@ function styleEditor() {
                 linearItems.push({
                     type: 'folder-button',
                     group: group,
-                    style: this.getGroupStyle(group.name)
+                    groupName: group.name
                 });
             }
 
             // 2. Flat group entities
             const flatGroups = groups.filter(g => g.displayType === 'flat');
             for (const group of flatGroups) {
-                const style = this.getGroupStyle(group.name);
                 for (const entityId of group.entities) {
                     const entity = this.getEntityById(entityId);
                     if (entity) {
@@ -2360,7 +2359,7 @@ function styleEditor() {
                             type: 'entity',
                             entity: entity,
                             entityId: entityId,
-                            style: style
+                            groupName: group.name
                         });
                     }
                 }
@@ -2374,7 +2373,7 @@ function styleEditor() {
                         type: 'entity',
                         entity: entity,
                         entityId: entityId,
-                        style: this.ungroupedStyle
+                        groupName: '__ungrouped__'
                     });
                 }
             }
@@ -2383,7 +2382,6 @@ function styleEditor() {
             const pageGroups = groups.filter(g => g.displayType === 'page');
             const pageGroupItems = [];
             for (const group of pageGroups) {
-                const style = this.getGroupStyle(group.name);
                 const groupItems = [];
                 for (const entityId of group.entities) {
                     const entity = this.getEntityById(entityId);
@@ -2392,7 +2390,6 @@ function styleEditor() {
                             type: 'entity',
                             entity: entity,
                             entityId: entityId,
-                            style: style,
                             groupName: group.name
                         });
                     }
@@ -2485,26 +2482,16 @@ function styleEditor() {
                                 type: 'folder',
                                 label: item.group.name,
                                 icon: 'mdi:folder',
-                                groupName: item.group.name,
-                                targetPageId: null, // Will be linked later
-                                style: {
-                                    backgroundColor: item.style.background,
-                                    iconColor: '#FFFFFF',
-                                    textColor: '#FFFFFF'
-                                }
+                                groupName: item.groupName,
+                                targetPageId: null // Will be linked later
                             };
                         } else {
-                            // Compute category-based colors for this entity
-                            const categoryColor = this.getEntityCategoryColor(item.entity, item.style);
                             page.layout[row][col] = {
                                 type: 'entity',
                                 ...item.entity,
                                 entityId: item.entityId,
-                                style: {
-                                    backgroundColor: item.style.background,
-                                    iconColor: categoryColor,
-                                    textColor: categoryColor
-                                }
+                                icon: this.getEntityIconName(item.entity),
+                                groupName: item.groupName
                             };
                         }
                         slotIndex++;
@@ -2566,17 +2553,12 @@ function styleEditor() {
                                 continue;
                             }
 
-                            // Compute category-based colors for this entity
-                            const categoryColor = this.getEntityCategoryColor(item.entity, item.style);
                             page.layout[row][col] = {
                                 type: 'entity',
                                 ...item.entity,
                                 entityId: item.entityId,
-                                style: {
-                                    backgroundColor: item.style.background,
-                                    iconColor: categoryColor,
-                                    textColor: categoryColor
-                                }
+                                icon: this.getEntityIconName(item.entity),
+                                groupName: item.groupName
                             };
                             slotIndex++;
                             break;
@@ -2596,7 +2578,6 @@ function styleEditor() {
          */
         buildFolderSubPages(group) {
             const pages = [];
-            const style = this.getGroupStyle(group.name);
             const cellsPerPage = this.deviceSize.cols * this.deviceSize.rows;
             const folderNav = this.getFolderNavPositions();
 
@@ -2660,17 +2641,12 @@ function styleEditor() {
                             continue;
                         }
 
-                        // Compute category-based colors for this entity
-                        const categoryColor = this.getEntityCategoryColor(entity, style);
                         page.layout[row][col] = {
                             type: 'entity',
                             ...entity,
                             entityId: entity.entity_id,
-                            style: {
-                                backgroundColor: style.background,
-                                iconColor: categoryColor,
-                                textColor: categoryColor
-                            }
+                            icon: this.getEntityIconName(entity),
+                            groupName: group.name
                         };
                         slotIndex++;
                         break;
@@ -3015,27 +2991,33 @@ function styleEditor() {
                     const cell = page.layout[row]?.[col];
                     if (cell) {
                         // Determine colors based on cell type
-                        let backgroundColor = cell.style?.background || this.ungroupedStyle.background;
+                        let backgroundColor = this.ungroupedStyle.background;
                         let iconColor = '#FFFFFF';
                         let textColor = '#FFFFFF';
 
                         if (cell.type === 'entity') {
-                            // For entities, use category-based colors
+                            // Look up current style from group or ungrouped
+                            const style = cell.groupName === '__ungrouped__'
+                                ? this.ungroupedStyle
+                                : this.getGroupStyle(cell.groupName);
+
                             const entity = this.getEntityById(cell.entityId);
-                            const style = cell.style || this.ungroupedStyle;
+                            backgroundColor = style.background;
                             if (entity) {
                                 const categoryColor = this.getEntityCategoryColor(entity, style);
                                 iconColor = categoryColor;
                                 textColor = categoryColor;
                             }
+                        } else if (cell.type === 'folder') {
+                            // Folder buttons use their group's background
+                            const style = this.getGroupStyle(cell.groupName);
+                            backgroundColor = style.background;
+                            iconColor = '#FFFFFF';
+                            textColor = '#FFFFFF';
                         } else if (cell.type === 'nav-next' || cell.type === 'nav-prev' || cell.type === 'folder-up') {
                             // Navigation buttons use preset background with white icons
                             const preset = this.themePresets[this.currentPreset];
                             backgroundColor = preset.background;
-                            iconColor = '#FFFFFF';
-                            textColor = '#FFFFFF';
-                        } else if (cell.type === 'folder') {
-                            // Folder buttons use their group style background with white icons
                             iconColor = '#FFFFFF';
                             textColor = '#FFFFFF';
                         }
