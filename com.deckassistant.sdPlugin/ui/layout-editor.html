@@ -12,6 +12,12 @@
         <header class="header">
             <h1>Deck Assistant - Layout Editor</h1>
             <div class="device-info">
+                <button class="btn btn-secondary btn-small"
+                        @click="startWizard()"
+                        x-show="!showWizard && wizardComplete"
+                        style="margin-right: 12px;">
+                    Reconfigure
+                </button>
                 <select class="filter-select" x-model="selectedDeviceId" @change="updateDeviceSize()" style="margin-right: 8px;">
                     <template x-for="device in availableDevices" :key="device.id">
                         <option :value="device.id" x-text="device.name + ' (' + device.cols + 'x' + device.rows + ')'"></option>

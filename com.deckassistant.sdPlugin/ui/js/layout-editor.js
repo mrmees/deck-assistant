@@ -361,6 +361,14 @@ function layoutEditor() {
                     this.entitiesWithLabels = payload.entitiesWithLabels || [];
                     // Check if this is a first-time user (no deck-assistant labels exist)
                     this.isFirstTimeUser = this.entitiesWithLabels.length === 0;
+
+                    // Auto-start wizard for first-time users after all data is loaded
+                    if (this.isFirstTimeUser && !this.loading && !this.showWizard && !this.wizardComplete) {
+                        // Small delay to let UI settle
+                        setTimeout(() => {
+                            this.startWizard();
+                        }, 500);
+                    }
                     break;
 
                 case 'labelCreated':
