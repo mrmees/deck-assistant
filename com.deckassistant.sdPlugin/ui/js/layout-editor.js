@@ -305,11 +305,12 @@ function styleEditor() {
         },
 
         // Style Editor State
-        groupStyles: {}, // { groupName: { backgroundColor, iconColor, textColor } }
+        groupStyles: {}, // { groupName: { backgroundColor, onOffColor, informationColor, triggerColor } }
         ungroupedStyle: {
             backgroundColor: '#1C1C1C',
-            iconColor: '#FFFFFF',
-            textColor: '#CCCCCC'
+            onOffColor: '#4CAF50',
+            informationColor: '#2196F3',
+            triggerColor: '#FF9800'
         },
         currentPreset: 'dark',
         previewPage: 'main', // 'main' or group name (legacy, kept for compatibility)
@@ -326,22 +327,25 @@ function styleEditor() {
             dark: {
                 name: 'Stream Deck Dark',
                 backgroundColor: '#1C1C1C',
-                iconColor: '#FFFFFF',
-                textColor: '#CCCCCC',
+                onOffColor: '#4CAF50',
+                informationColor: '#2196F3',
+                triggerColor: '#FF9800',
                 folderColor: '#333333'
             },
             blue: {
                 name: 'Home Assistant Blue',
                 backgroundColor: '#03A9F4',
-                iconColor: '#FFFFFF',
-                textColor: '#FFFFFF',
+                onOffColor: '#FFFFFF',
+                informationColor: '#E3F2FD',
+                triggerColor: '#FFEB3B',
                 folderColor: '#0288D1'
             },
             minimal: {
                 name: 'Minimal White',
                 backgroundColor: '#FFFFFF',
-                iconColor: '#333333',
-                textColor: '#333333',
+                onOffColor: '#4CAF50',
+                informationColor: '#2196F3',
+                triggerColor: '#FF9800',
                 folderColor: '#F5F5F5'
             }
         },
@@ -2137,8 +2141,9 @@ function styleEditor() {
             const preset = this.themePresets[this.currentPreset];
             this.ungroupedStyle = {
                 backgroundColor: preset.backgroundColor,
-                iconColor: preset.iconColor,
-                textColor: preset.textColor
+                onOffColor: preset.onOffColor,
+                informationColor: preset.informationColor,
+                triggerColor: preset.triggerColor
             };
 
             // Close wizard and show Style Editor
@@ -2161,8 +2166,9 @@ function styleEditor() {
                         const preset = this.themePresets[this.currentPreset];
                         this.groupStyles[group.name] = {
                             backgroundColor: preset.backgroundColor,
-                            iconColor: preset.iconColor,
-                            textColor: preset.textColor
+                            onOffColor: preset.onOffColor,
+                            informationColor: preset.informationColor,
+                            triggerColor: preset.triggerColor
                         };
                     }
                 }
@@ -3050,8 +3056,9 @@ function styleEditor() {
                 const preset = this.themePresets[this.currentPreset];
                 this.groupStyles[groupName] = {
                     backgroundColor: preset.backgroundColor,
-                    iconColor: preset.iconColor,
-                    textColor: preset.textColor
+                    onOffColor: preset.onOffColor,
+                    informationColor: preset.informationColor,
+                    triggerColor: preset.triggerColor
                 };
             }
             return this.groupStyles[groupName];
@@ -3381,20 +3388,25 @@ function styleEditor() {
             for (const group of this.wizardSelections.groups || []) {
                 this.groupStyles[group.name] = {
                     backgroundColor: preset.backgroundColor,
-                    iconColor: preset.iconColor,
-                    textColor: preset.textColor
+                    onOffColor: preset.onOffColor,
+                    informationColor: preset.informationColor,
+                    triggerColor: preset.triggerColor
                 };
             }
 
             // Apply to ungrouped style
             this.ungroupedStyle = {
                 backgroundColor: preset.backgroundColor,
-                iconColor: preset.iconColor,
-                textColor: preset.textColor
+                onOffColor: preset.onOffColor,
+                informationColor: preset.informationColor,
+                triggerColor: preset.triggerColor
             };
 
-            // Update global theme
+            // Update global theme background
             this.theme.backgroundColor = preset.backgroundColor;
+
+            // Refresh preview
+            this.refreshPreviewPages();
         }
     };
 }
