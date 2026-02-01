@@ -229,12 +229,23 @@
                             </div>
                         </div>
 
-                        <!-- Global Settings -->
+                        <!-- Navigation Settings -->
                         <div class="theme-section">
                             <div class="theme-section-title">Navigation</div>
-                            <div class="theme-row">
-                                <span class="theme-label">Back Button Position</span>
-                                <select class="filter-select" x-model="theme.backButtonPosition" style="width: auto;">
+
+                            <div class="setting-row">
+                                <label class="setting-label">Nav Buttons</label>
+                                <select class="setting-select" x-model="theme.navStartPosition">
+                                    <option value="bottom-right">Bottom Right</option>
+                                    <option value="bottom-left">Bottom Left</option>
+                                    <option value="top-right">Top Right</option>
+                                    <option value="top-left">Top Left</option>
+                                </select>
+                            </div>
+
+                            <div class="setting-row">
+                                <label class="setting-label">Folder Up</label>
+                                <select class="setting-select" x-model="theme.folderUpPosition">
                                     <option value="bottom-right">Bottom Right</option>
                                     <option value="bottom-left">Bottom Left</option>
                                     <option value="top-right">Top Right</option>
