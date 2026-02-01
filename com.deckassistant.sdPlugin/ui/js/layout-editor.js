@@ -324,6 +324,9 @@ function styleEditor() {
         wizardHideUnavailable: true, // Filter to hide disabled/unavailable entities (default on)
         groupDragIndex: null, // Index of group being dragged
         groupDragOverIndex: null, // Index of group being dragged over
+        // Ungrouped drag state
+        ungroupedDragIndex: null,
+        ungroupedDragOverIndex: null,
         wizardSelections: {
             startChoice: 'wizard', // 'wizard' or 'manual'
             approach: 'groups', // 'groups' or 'simple'
@@ -2636,6 +2639,63 @@ function styleEditor() {
 
             this.wizardSelections.ungroupedEntities = entities.map(e => e.id);
             this.preloadPreviewIcons();
+        },
+
+        handleUngroupedDragStart(event, index) {
+            this.ungroupedDragIndex = index;
+            event.dataTransfer.effectAllowed = 'move';
+        },
+
+        handleUngroupedDragOver(event, index) {
+            event.preventDefault();
+            this.ungroupedDragOverIndex = index;
+        },
+
+        handleUngroupedDragLeave() {
+            this.ungroupedDragOverIndex = null;
+        },
+
+        handleUngroupedDrop(event, targetIndex) {
+            event.preventDefault();
+            const sourceIndex = this.ungroupedDragIndex;
+
+            if (sourceIndex !== null && sourceIndex !== targetIndex) {
+                // Reorder the array
+                const items = [...this.wizardSelections.ungroupedEntities];
+                const [movedItem] = items.splice(sourceIndex, 1);
+                items.splice(targetIndex, 0, movedItem);
+                this.wizardSelections.ungroupedEntities = items;
+
+                // Mark as custom sort
+                this.wizardSelections.ungroupedSort = 'custom';
+            }
+
+            this.ungroupedDragIndex = null;
+            this.ungroupedDragOverIndex = null;
+            this.preloadPreviewIcons();
+        },
+
+        /**
+         * Calculate which page an ungrouped entity will be on
+         * Accounts for folder buttons and nav buttons taking slots
+         */
+        getEntityPageNumber(ungroupedIndex) {
+            const groups = this.wizardSelections.groups || [];
+            const folderCount = groups.filter(g => g.displayType === 'folder').length;
+            const flatCount = groups.filter(g => g.displayType === 'flat')
+                .reduce((sum, g) => sum + g.entities.length, 0);
+
+            const cellsPerPage = this.deviceSize.cols * this.deviceSize.rows;
+            // Reserve 1 slot for nav on main page (->), 2 for overflow pages (<- ->)
+            const mainAvailable = cellsPerPage - 1 - folderCount - flatCount;
+            const overflowAvailable = cellsPerPage - 2;
+
+            if (ungroupedIndex < mainAvailable) {
+                return 1; // Main page
+            }
+
+            const remaining = ungroupedIndex - mainAvailable;
+            return 2 + Math.floor(remaining / overflowAvailable);
         },
 
         // ========== Label Helpers ==========

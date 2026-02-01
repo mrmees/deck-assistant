@@ -97,49 +97,80 @@
                             </div>
                         </template>
 
-                        <!-- Ungrouped Entities -->
-                        <template x-if="wizardSelections.ungroupedEntities.length > 0">
-                            <div class="style-group-item">
-                                <div class="style-group-header" @click="ungroupedExpanded = !ungroupedExpanded">
-                                    <span class="style-group-expand" x-text="ungroupedExpanded ? '▼' : '▶'"></span>
-                                    <span class="style-group-name">Ungrouped</span>
-                                    <span class="style-group-count" x-text="wizardSelections.ungroupedEntities.length"></span>
-                                    <span class="style-group-type">main</span>
+                        <!-- Ungrouped Entities with Sorting -->
+                        <template x-if="wizardSelections.ungroupedEntities && wizardSelections.ungroupedEntities.length > 0">
+                            <div class="ungrouped-section">
+                                <div class="panel-header">
+                                    <span>Ungrouped Items</span>
+                                    <span class="item-count" x-text="wizardSelections.ungroupedEntities.length"></span>
                                 </div>
 
-                                <template x-if="ungroupedExpanded">
-                                    <div class="style-group-content">
-                                        <div class="style-controls">
-                                            <div class="style-control-row">
-                                                <label>Background</label>
-                                                <input type="color"
-                                                       :value="ungroupedStyle.backgroundColor"
-                                                       @input="ungroupedStyle.backgroundColor = $event.target.value">
-                                            </div>
-                                            <div class="style-control-row">
-                                                <label>Icon Color</label>
-                                                <input type="color"
-                                                       :value="ungroupedStyle.iconColor"
-                                                       @input="ungroupedStyle.iconColor = $event.target.value">
-                                            </div>
-                                            <div class="style-control-row">
-                                                <label>Text Color</label>
-                                                <input type="color"
-                                                       :value="ungroupedStyle.textColor"
-                                                       @input="ungroupedStyle.textColor = $event.target.value">
-                                            </div>
-                                        </div>
-
-                                        <div class="style-group-entities">
-                                            <template x-for="entityId in wizardSelections.ungroupedEntities.slice(0, 5)" :key="entityId">
-                                                <div class="style-entity-item" x-text="getEntityName(entityId)"></div>
-                                            </template>
-                                            <template x-if="wizardSelections.ungroupedEntities.length > 5">
-                                                <div class="style-entity-more" x-text="'+ ' + (wizardSelections.ungroupedEntities.length - 5) + ' more'"></div>
-                                            </template>
-                                        </div>
+                                <!-- Style Controls (collapsible) -->
+                                <div class="style-group-item" style="margin: 8px;">
+                                    <div class="style-group-header" @click="ungroupedExpanded = !ungroupedExpanded">
+                                        <span class="style-group-expand" x-text="ungroupedExpanded ? '▼' : '▶'"></span>
+                                        <span class="style-group-name">Style</span>
                                     </div>
-                                </template>
+                                    <template x-if="ungroupedExpanded">
+                                        <div class="style-group-content">
+                                            <div class="style-controls">
+                                                <div class="style-control-row">
+                                                    <label>Background</label>
+                                                    <input type="color"
+                                                           :value="ungroupedStyle.backgroundColor"
+                                                           @input="ungroupedStyle.backgroundColor = $event.target.value">
+                                                </div>
+                                                <div class="style-control-row">
+                                                    <label>Icon Color</label>
+                                                    <input type="color"
+                                                           :value="ungroupedStyle.iconColor"
+                                                           @input="ungroupedStyle.iconColor = $event.target.value">
+                                                </div>
+                                                <div class="style-control-row">
+                                                    <label>Text Color</label>
+                                                    <input type="color"
+                                                           :value="ungroupedStyle.textColor"
+                                                           @input="ungroupedStyle.textColor = $event.target.value">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <!-- Sort Options -->
+                                <div class="sort-options">
+                                    <template x-for="option in getAvailableSortOptions()" :key="option.id">
+                                        <button class="sort-btn"
+                                                :class="{ 'active': wizardSelections.ungroupedSort === option.id }"
+                                                @click="applyUngroupedSort(option.id)"
+                                                x-text="option.label">
+                                        </button>
+                                    </template>
+                                    <span class="sort-status" x-show="wizardSelections.ungroupedSort === 'custom'">
+                                        (Custom order)
+                                    </span>
+                                </div>
+
+                                <!-- Draggable List with Position Numbers and Page Indicators -->
+                                <div class="ungrouped-list" id="ungrouped-sortable">
+                                    <template x-for="(entityId, index) in wizardSelections.ungroupedEntities" :key="entityId">
+                                        <div class="ungrouped-item"
+                                             draggable="true"
+                                             @dragstart="handleUngroupedDragStart($event, index)"
+                                             @dragover.prevent="handleUngroupedDragOver($event, index)"
+                                             @dragleave="handleUngroupedDragLeave()"
+                                             @drop="handleUngroupedDrop($event, index)"
+                                             :class="{
+                                                 'drag-over': ungroupedDragOverIndex === index,
+                                                 'page-break': index > 0 && getEntityPageNumber(index) !== getEntityPageNumber(index - 1)
+                                             }">
+                                            <span class="drag-handle">&#8942;&#8942;</span>
+                                            <span class="ungrouped-position" x-text="index + 1"></span>
+                                            <span class="ungrouped-item-name" x-text="getEntityById(entityId)?.friendly_name || entityId"></span>
+                                            <span class="ungrouped-item-page" x-text="'P' + getEntityPageNumber(index)"></span>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </template>
                     </div>
