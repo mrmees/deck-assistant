@@ -335,6 +335,10 @@
                         <!-- Welcome Step -->
                         <template x-if="wizardSteps[wizardStep].id === 'welcome'">
                             <div class="wizard-welcome">
+                                <div class="wizard-tip-note">
+                                    <strong>Tip:</strong> You can simplify this process by adding a <code>deck-assistant</code> label to entities in Home Assistant before starting. The wizard will let you filter to only those labeled entities.
+                                </div>
+
                                 <div class="wizard-important-note">
                                     <strong>Important:</strong> Due to Stream Deck SDK limitations, this plugin generates profile files that you must import manually. Once imported, Deck Assistant cannot modify your Stream Deck layout directly.
                                 </div>
