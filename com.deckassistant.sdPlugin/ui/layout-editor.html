@@ -99,6 +99,17 @@
                                                        :value="getGroupStyle(group.name).trigger"
                                                        @input="setGroupStyleProp(group.name, 'trigger', $event.target.value)">
                                             </div>
+                                            <div class="style-control-row">
+                                                <label>Labels</label>
+                                                <select class="style-select"
+                                                        :value="getGroupStyle(group.name).labelStyle || 'name'"
+                                                        @change="setGroupStyleProp(group.name, 'labelStyle', $event.target.value)">
+                                                    <option value="none">Icon Only</option>
+                                                    <option value="name">Name</option>
+                                                    <option value="state">State</option>
+                                                    <option value="name-and-state">Name + State</option>
+                                                </select>
+                                            </div>
                                         </div>
 
                                         <!-- Entity List Preview -->
@@ -167,6 +178,17 @@
                                                     <input type="color"
                                                            :value="ungroupedStyle.trigger"
                                                            @input="ungroupedStyle.trigger = $event.target.value">
+                                                </div>
+                                                <div class="style-control-row">
+                                                    <label>Labels</label>
+                                                    <select class="style-select"
+                                                            :value="ungroupedStyle.labelStyle || 'name'"
+                                                            @change="ungroupedStyle.labelStyle = $event.target.value">
+                                                        <option value="none">Icon Only</option>
+                                                        <option value="name">Name</option>
+                                                        <option value="state">State</option>
+                                                        <option value="name-and-state">Name + State</option>
+                                                    </select>
                                                 </div>
                                             </div>
                                         </div>
