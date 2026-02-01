@@ -15,6 +15,7 @@ import {
   HAArea,
   HADevice,
   HAEntityRegistryEntry,
+  HALabel,
   ConnectionState,
 } from "./types.js";
 
@@ -30,6 +31,7 @@ export class HomeAssistantConnection {
   private areas: HAArea[] = [];
   private devices: HADevice[] = [];
   private entityRegistry: HAEntityRegistryEntry[] = [];
+  private labels: HALabel[] = [];
   private entitySubscribers: Set<EntityCallback> = new Set();
   private connectionSubscribers: Set<ConnectionCallback> = new Set();
   private entitiesUnsubscribe: UnsubscribeFunc | null = null;
@@ -61,11 +63,12 @@ export class HomeAssistantConnection {
         this.handleEntitiesUpdate(entities);
       });
 
-      // Fetch areas, devices, and entity registry
+      // Fetch areas, devices, entity registry, and labels
       await Promise.all([
         this.fetchAreas(),
         this.fetchDevices(),
         this.fetchEntityRegistry(),
+        this.fetchLabels(),
       ]);
 
       this.updateConnectionState({ connected: true });
@@ -94,6 +97,7 @@ export class HomeAssistantConnection {
     this.areas = [];
     this.devices = [];
     this.entityRegistry = [];
+    this.labels = [];
     this.updateConnectionState({ connected: false });
   }
 
@@ -146,6 +150,13 @@ export class HomeAssistantConnection {
    */
   getDeviceRegistry(): HADevice[] {
     return [...this.devices];
+  }
+
+  /**
+   * Get all labels
+   */
+  getLabels(): HALabel[] {
+    return [...this.labels];
   }
 
   /**
@@ -249,6 +260,107 @@ export class HomeAssistantConnection {
       console.error("Failed to fetch entity registry:", error);
       this.entityRegistry = [];
     }
+  }
+
+  /**
+   * Fetch labels from Home Assistant
+   */
+  private async fetchLabels(): Promise<void> {
+    if (!this.connection) {
+      return;
+    }
+
+    try {
+      const labels = await this.connection.sendMessagePromise<HALabel[]>({
+        type: "config/label_registry/list",
+      });
+      this.labels = labels || [];
+    } catch (error) {
+      console.error("Failed to fetch labels:", error);
+      this.labels = [];
+    }
+  }
+
+  /**
+   * Create a new label in Home Assistant
+   */
+  async createLabel(labelId: string, name: string): Promise<HALabel | null> {
+    if (!this.connection) {
+      throw new Error("Not connected to Home Assistant");
+    }
+
+    try {
+      const result = await this.connection.sendMessagePromise<HALabel>({
+        type: "config/label_registry/create",
+        name: name,
+      });
+
+      // Refresh labels cache
+      await this.fetchLabels();
+
+      return result;
+    } catch (error) {
+      console.error("Failed to create label:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Assign labels to an entity
+   */
+  async assignLabelsToEntity(entityId: string, labelIds: string[]): Promise<void> {
+    if (!this.connection) {
+      throw new Error("Not connected to Home Assistant");
+    }
+
+    try {
+      await this.connection.sendMessagePromise({
+        type: "config/entity_registry/update",
+        entity_id: entityId,
+        labels: labelIds,
+      });
+
+      // Refresh entity registry cache
+      await this.fetchEntityRegistry();
+    } catch (error) {
+      console.error(`Failed to assign labels to ${entityId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get entities that have deck-assistant labels
+   */
+  getEntitiesWithDeckAssistantLabels(): Array<{
+    entity_id: string;
+    labels: string[];
+    hierarchy: string[][];
+  }> {
+    const results: Array<{
+      entity_id: string;
+      labels: string[];
+      hierarchy: string[][];
+    }> = [];
+
+    for (const entry of this.entityRegistry) {
+      if (!entry.labels || entry.labels.length === 0) continue;
+
+      const daLabels = entry.labels.filter(l => l.startsWith("deck-assistant:"));
+      if (daLabels.length === 0) continue;
+
+      const hierarchy = daLabels.map(label => {
+        const parts = label.split(":");
+        return parts.slice(1); // Remove "deck-assistant" prefix
+      });
+
+      results.push({
+        entity_id: entry.entity_id,
+        labels: daLabels,
+        hierarchy,
+      });
+    }
+
+    return results;
   }
 
   /**
