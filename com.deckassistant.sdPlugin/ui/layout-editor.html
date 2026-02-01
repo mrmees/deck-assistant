@@ -224,53 +224,13 @@
                     </div>
                 </div>
 
-                <!-- Right Panel - Theme & Presets -->
+                <!-- Right Panel - Settings -->
                 <div class="style-panel-right">
                     <div class="panel-header">
-                        <span>Theme</span>
+                        <span>Settings</span>
                     </div>
 
                     <div class="theme-content">
-                        <!-- Presets -->
-                        <div class="theme-section">
-                            <div class="theme-section-title">Presets</div>
-                            <div class="theme-presets">
-                                <button class="theme-preset-btn"
-                                        :class="{ active: currentPreset === 'modern' }"
-                                        @click="applyPreset('modern')">
-                                    Modern
-                                </button>
-                                <button class="theme-preset-btn"
-                                        :class="{ active: currentPreset === 'classic' }"
-                                        @click="applyPreset('classic')">
-                                    Classic
-                                </button>
-                                <button class="theme-preset-btn"
-                                        :class="{ active: currentPreset === 'minimal' }"
-                                        @click="applyPreset('minimal')">
-                                    Minimal
-                                </button>
-                                <button class="theme-preset-btn"
-                                        :class="{ active: currentPreset === 'vibrant' }"
-                                        @click="applyPreset('vibrant')">
-                                    Vibrant
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Domain Colors -->
-                        <div class="theme-section">
-                            <div class="theme-section-title">Domain Colors</div>
-                            <div class="theme-domain-colors">
-                                <template x-for="(color, domain) in domainColors" :key="domain">
-                                    <div class="theme-row">
-                                        <span class="theme-label" x-text="formatDomainName(domain)"></span>
-                                        <input type="color" class="color-picker" x-model="domainColors[domain]">
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-
                         <!-- Navigation Settings -->
                         <div class="theme-section">
                             <div class="theme-section-title">Navigation</div>
