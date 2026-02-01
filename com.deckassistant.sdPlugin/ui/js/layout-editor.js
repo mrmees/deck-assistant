@@ -2145,6 +2145,7 @@ function styleEditor() {
             // Initialize ungrouped style with current preset
             const preset = this.themePresets[this.currentPreset];
             this.ungroupedStyle = {
+                preset: this.currentPreset,
                 background: preset.background,
                 onOff: preset.onOff,
                 information: preset.information,
@@ -2170,6 +2171,7 @@ function styleEditor() {
                     if (!this.groupStyles[group.name]) {
                         const preset = this.themePresets[this.currentPreset];
                         this.groupStyles[group.name] = {
+                            preset: this.currentPreset,
                             background: preset.background,
                             onOff: preset.onOff,
                             information: preset.information,
