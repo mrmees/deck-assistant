@@ -173,38 +173,13 @@
                                     </template>
                                 </div>
 
-                                <!-- Sort Options -->
-                                <div class="sort-options">
-                                    <template x-for="option in getAvailableSortOptions()" :key="option.id">
-                                        <button class="sort-btn"
-                                                :class="{ 'active': wizardSelections.ungroupedSort === option.id }"
-                                                @click="applyUngroupedSort(option.id)"
-                                                x-text="option.label">
-                                        </button>
+                                <!-- Entity List Preview (simple, no reordering) -->
+                                <div class="style-group-entities">
+                                    <template x-for="entityId in wizardSelections.ungroupedEntities.slice(0, 5)" :key="entityId">
+                                        <div class="style-entity-item" x-text="getEntityName(entityId)"></div>
                                     </template>
-                                    <span class="sort-status" x-show="wizardSelections.ungroupedSort === 'custom'">
-                                        (Custom order)
-                                    </span>
-                                </div>
-
-                                <!-- Draggable List with Position Numbers and Page Indicators -->
-                                <div class="ungrouped-list" id="ungrouped-sortable">
-                                    <template x-for="(entityId, index) in wizardSelections.ungroupedEntities" :key="entityId">
-                                        <div class="ungrouped-item"
-                                             draggable="true"
-                                             @dragstart="handleUngroupedDragStart($event, index)"
-                                             @dragover.prevent="handleUngroupedDragOver($event, index)"
-                                             @dragleave="handleUngroupedDragLeave()"
-                                             @drop="handleUngroupedDrop($event, index)"
-                                             :class="{
-                                                 'drag-over': ungroupedDragOverIndex === index,
-                                                 'page-break': index > 0 && getEntityPageNumber(index) !== getEntityPageNumber(index - 1)
-                                             }">
-                                            <span class="drag-handle">&#8942;&#8942;</span>
-                                            <span class="ungrouped-position" x-text="index + 1"></span>
-                                            <span class="ungrouped-item-name" x-text="getEntityById(entityId)?.friendly_name || entityId"></span>
-                                            <span class="ungrouped-item-page" x-text="'P' + getEntityPageNumber(index)"></span>
-                                        </div>
+                                    <template x-if="wizardSelections.ungroupedEntities.length > 5">
+                                        <div class="style-entity-more" x-text="'+ ' + (wizardSelections.ungroupedEntities.length - 5) + ' more'"></div>
                                     </template>
                                 </div>
                             </div>
