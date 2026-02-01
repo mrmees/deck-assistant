@@ -1262,6 +1262,138 @@ body {
     color: #fff;
 }
 
+/* Layout Sections (new UI) */
+.wizard-layout-section {
+    margin-bottom: 16px;
+}
+
+.wizard-section-header h4 {
+    margin: 0 0 4px 0;
+    font-size: 13px;
+    color: #fff;
+    font-weight: 600;
+}
+
+.wizard-section-hint {
+    margin: 0 0 8px 0;
+    font-size: 11px;
+    color: #888;
+}
+
+.wizard-section-separator {
+    height: 1px;
+    background: #444;
+    margin: 16px 0;
+}
+
+.wizard-page-section {
+    opacity: 0.8;
+}
+
+.wizard-page-section .wizard-section-header h4 {
+    color: #aaa;
+}
+
+/* Sortable items */
+.wizard-sortable-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.wizard-sortable-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #333;
+    border-radius: 6px;
+    cursor: grab;
+    transition: background 0.15s;
+}
+
+.wizard-sortable-item:hover {
+    background: #3a3a3a;
+}
+
+.wizard-sortable-item:active {
+    cursor: grabbing;
+}
+
+.wizard-sortable-item.dragging {
+    opacity: 0.5;
+}
+
+.wizard-drag-handle {
+    color: #666;
+    font-size: 14px;
+    user-select: none;
+}
+
+.wizard-item-name {
+    flex: 1;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.wizard-item-count {
+    font-size: 11px;
+    color: #888;
+}
+
+.wizard-display-select {
+    background: #444;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: #fff;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.wizard-display-select:focus {
+    outline: none;
+    border-color: #0078d4;
+}
+
+.wizard-display-locked {
+    color: #666;
+    font-size: 11px;
+    padding: 4px 8px;
+    font-style: italic;
+}
+
+.wizard-newrow-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #aaa;
+    cursor: pointer;
+}
+
+.wizard-newrow-checkbox:hover {
+    color: #fff;
+}
+
+.wizard-newrow-checkbox input {
+    margin: 0;
+    cursor: pointer;
+}
+
+.wizard-page-item {
+    background: #2a2a2a;
+    border-left: 2px solid #555;
+}
+
+.wizard-empty-hint {
+    color: #666;
+    font-size: 11px;
+    font-style: italic;
+    padding: 12px;
+    text-align: center;
+}
 
 /* Input step */
 .wizard-input-step {
