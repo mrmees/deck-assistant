@@ -489,6 +489,122 @@ function styleEditor() {
             this.connectToParent();
         },
 
+        /**
+         * Save current state to localStorage for persistence across refreshes
+         */
+        saveState() {
+            try {
+                const state = {
+                    version: 1,
+                    savedAt: new Date().toISOString(),
+                    wizardComplete: this.wizardComplete,
+                    groups: this.wizardSelections.groups,
+                    ungroupedEntities: this.wizardSelections.ungroupedEntities,
+                    groupStyles: this.groupStyles,
+                    ungroupedStyle: this.ungroupedStyle,
+                    theme: this.theme,
+                    currentPreset: this.currentPreset,
+                    selectedDeviceId: this.selectedDeviceId
+                };
+                localStorage.setItem('deckAssistantState', JSON.stringify(state));
+                console.log('State saved to localStorage');
+            } catch (e) {
+                console.warn('Failed to save state:', e);
+            }
+        },
+
+        /**
+         * Load state from localStorage if available
+         */
+        loadState() {
+            try {
+                const saved = localStorage.getItem('deckAssistantState');
+                if (!saved) return false;
+
+                const state = JSON.parse(saved);
+                if (!state.version) return false;
+
+                // Validate entities still exist before restoring
+                const availableEntityIds = new Set(this.allEntities.map(e => e.entity_id));
+                let missingCount = 0;
+
+                // Restore groups with validation
+                if (state.groups) {
+                    this.wizardSelections.groups = state.groups.map(group => {
+                        const validEntities = group.entities.filter(id => {
+                            if (availableEntityIds.has(id)) return true;
+                            missingCount++;
+                            return false;
+                        });
+                        return { ...group, entities: validEntities };
+                    }).filter(g => g.entities.length > 0);
+                }
+
+                // Restore ungrouped entities with validation
+                if (state.ungroupedEntities) {
+                    this.wizardSelections.ungroupedEntities = state.ungroupedEntities.filter(id => {
+                        if (availableEntityIds.has(id)) return true;
+                        missingCount++;
+                        return false;
+                    });
+                }
+
+                // Restore styles (only for groups that still exist)
+                if (state.groupStyles) {
+                    const validGroupNames = new Set(this.wizardSelections.groups.map(g => g.name));
+                    this.groupStyles = {};
+                    for (const [name, style] of Object.entries(state.groupStyles)) {
+                        if (validGroupNames.has(name)) {
+                            this.groupStyles[name] = style;
+                        }
+                    }
+                }
+
+                if (state.ungroupedStyle) {
+                    this.ungroupedStyle = state.ungroupedStyle;
+                }
+
+                if (state.theme) {
+                    this.theme = { ...this.theme, ...state.theme };
+                }
+
+                if (state.currentPreset) {
+                    this.currentPreset = state.currentPreset;
+                }
+
+                if (state.selectedDeviceId) {
+                    this.selectedDeviceId = state.selectedDeviceId;
+                }
+
+                // Restore wizard state
+                if (state.wizardComplete && (this.wizardSelections.groups.length > 0 || this.wizardSelections.ungroupedEntities.length > 0)) {
+                    this.wizardComplete = true;
+                    this.showWizard = false;
+                    this.refreshPreviewPages();
+
+                    if (missingCount > 0) {
+                        this.status = `Restored configuration (${missingCount} entities no longer available)`;
+                    } else {
+                        this.status = 'Configuration restored';
+                    }
+                    return true;
+                }
+
+                return false;
+            } catch (e) {
+                console.warn('Failed to load state:', e);
+                return false;
+            }
+        },
+
+        /**
+         * Clear saved state
+         */
+        clearSavedState() {
+            localStorage.removeItem('deckAssistantState');
+            console.log('Saved state cleared');
+        },
+
         initializePages() {
             // Create initial empty page with correct grid size
             this.pages = [{
@@ -637,8 +753,12 @@ function styleEditor() {
                     this.connected = true;
                     this.loading = false;
                     this.status = 'Ready';
-                    // Check if wizard should auto-start
-                    this.checkAutoStartWizard();
+                    // Try to restore saved state first
+                    const stateRestored = this.loadState();
+                    if (!stateRestored) {
+                        // No saved state, check if wizard should auto-start
+                        this.checkAutoStartWizard();
+                    }
                     break;
 
                 case 'areasData':
@@ -706,6 +826,10 @@ function styleEditor() {
                     if (this._pendingHAThemeTarget !== undefined) {
                         this.applyHAThemeColors(payload.themes);
                     }
+                    break;
+
+                case 'configExported':
+                    this.status = `Configuration saved to ${payload.filename}`;
                     break;
 
                 case 'error':
@@ -1056,6 +1180,10 @@ function styleEditor() {
                 flatLayoutStyle: 'continuous',
                 layoutStyle: 'groups-as-folders'
             };
+            this.groupStyles = {};
+            this.wizardComplete = false;
+            // Clear saved state when starting fresh
+            this.clearSavedState();
         },
 
         /**
@@ -2125,8 +2253,9 @@ function styleEditor() {
                 group.startNewRow = false;
             }
 
-            // Refresh preview
+            // Refresh preview and save state
             this.refreshPreviewPages();
+            this.saveState();
         },
 
         /**
@@ -2338,6 +2467,9 @@ function styleEditor() {
 
             // Build preview pages and preload icons
             this.refreshPreviewPages();
+
+            // Save state for persistence
+            this.saveState();
         },
 
         async finishWizard() {
@@ -2372,6 +2504,9 @@ function styleEditor() {
 
             // Build preview pages and preload icons
             this.refreshPreviewPages();
+
+            // Save state for persistence
+            this.saveState();
 
             // User can now customize styles and click "Generate Profile" when ready
         },
@@ -2662,7 +2797,6 @@ function styleEditor() {
             const cols = this.deviceSize.cols;
             const rows = this.deviceSize.rows;
             const cellsPerPage = cols * rows;
-            const navPositions = this.getNavPositions(this.theme.navStartPosition);
 
             let remainingItems = [...linearItems];
             let pageIndex = 0;
@@ -2684,27 +2818,33 @@ function styleEditor() {
                 const needsNext = hasMorePhase1 || pageGroupsExist || newRowGroupsExist;
                 const needsPrev = !isMain;
 
-                let availableSlots = cellsPerPage;
-                if (needsNext) availableSlots--;
-                if (needsPrev) availableSlots--;
+                // Get reserved button positions using unified function
+                const buttonPositions = this.getReservedButtonPositions({
+                    needsFolderUp: false,
+                    needsNext,
+                    needsPrev
+                });
 
-                // Place navigation
-                if (needsPrev) {
-                    page.layout[navPositions.prev.row][navPositions.prev.col] = {
+                const reservedCount = buttonPositions.all.length;
+                const availableSlots = cellsPerPage - reservedCount;
+
+                // Place navigation buttons at their reserved positions
+                if (buttonPositions.prev) {
+                    page.layout[buttonPositions.prev.row][buttonPositions.prev.col] = {
                         type: 'nav-prev',
                         icon: 'mdi:arrow-left',
                         label: '←'
                     };
                 }
-                if (needsNext) {
-                    page.layout[navPositions.next.row][navPositions.next.col] = {
+                if (buttonPositions.next) {
+                    page.layout[buttonPositions.next.row][buttonPositions.next.col] = {
                         type: 'nav-next',
                         icon: 'mdi:arrow-right',
                         label: '→'
                     };
                 }
 
-                // Fill with phase 1 items
+                // Fill with phase 1 items, skipping reserved positions
                 const itemsForPage = remainingItems.splice(0, availableSlots);
                 let slotIndex = 0;
 
@@ -2757,7 +2897,13 @@ function styleEditor() {
 
                     // Start on new row
                     if (currentRow >= rows) {
-                        // Need a new page
+                        // Need a new page - get button positions for new page with prev
+                        const newPagePositions = this.getReservedButtonPositions({
+                            needsFolderUp: false,
+                            needsNext: false,
+                            needsPrev: true
+                        });
+
                         currentPage = {
                             id: this.generateId(),
                             name: `Page ${pages.length + 1}`,
@@ -2767,12 +2913,14 @@ function styleEditor() {
                         pages.push(currentPage);
                         currentRow = 0;
 
-                        // Add prev navigation
-                        currentPage.layout[navPositions.prev.row][navPositions.prev.col] = {
-                            type: 'nav-prev',
-                            icon: 'mdi:arrow-left',
-                            label: '←'
-                        };
+                        // Add prev navigation at reserved position
+                        if (newPagePositions.prev) {
+                            currentPage.layout[newPagePositions.prev.row][newPagePositions.prev.col] = {
+                                type: 'nav-prev',
+                                icon: 'mdi:arrow-left',
+                                label: '←'
+                            };
+                        }
                     }
 
                     // Place entities starting at column 0 of currentRow
@@ -2788,12 +2936,26 @@ function styleEditor() {
                             col = 0;
 
                             if (currentRow >= rows) {
-                                // Add next nav to current page
-                                currentPage.layout[navPositions.next.row][navPositions.next.col] = {
-                                    type: 'nav-next',
-                                    icon: 'mdi:arrow-right',
-                                    label: '→'
-                                };
+                                // Add next nav to current page at corner position
+                                const nextPositions = this.getReservedButtonPositions({
+                                    needsFolderUp: false,
+                                    needsNext: true,
+                                    needsPrev: false
+                                });
+                                if (nextPositions.next) {
+                                    currentPage.layout[nextPositions.next.row][nextPositions.next.col] = {
+                                        type: 'nav-next',
+                                        icon: 'mdi:arrow-right',
+                                        label: '→'
+                                    };
+                                }
+
+                                // Create new page with prev nav
+                                const prevPositions = this.getReservedButtonPositions({
+                                    needsFolderUp: false,
+                                    needsNext: false,
+                                    needsPrev: true
+                                });
 
                                 currentPage = {
                                     id: this.generateId(),
@@ -2804,11 +2966,13 @@ function styleEditor() {
                                 pages.push(currentPage);
                                 currentRow = 0;
 
-                                currentPage.layout[navPositions.prev.row][navPositions.prev.col] = {
-                                    type: 'nav-prev',
-                                    icon: 'mdi:arrow-left',
-                                    label: '←'
-                                };
+                                if (prevPositions.prev) {
+                                    currentPage.layout[prevPositions.prev.row][prevPositions.prev.col] = {
+                                        type: 'nav-prev',
+                                        icon: 'mdi:arrow-left',
+                                        label: '←'
+                                    };
+                                }
                             }
                         }
 
@@ -2832,8 +2996,13 @@ function styleEditor() {
             // Add next navigation if page groups exist
             if (pageGroupsExist && pages.length > 0) {
                 const lastPage = pages[pages.length - 1];
-                if (!lastPage.layout[navPositions.next.row][navPositions.next.col]) {
-                    lastPage.layout[navPositions.next.row][navPositions.next.col] = {
+                const nextPositions = this.getReservedButtonPositions({
+                    needsFolderUp: false,
+                    needsNext: true,
+                    needsPrev: false
+                });
+                if (nextPositions.next && !lastPage.layout[nextPositions.next.row][nextPositions.next.col]) {
+                    lastPage.layout[nextPositions.next.row][nextPositions.next.col] = {
                         type: 'nav-next',
                         icon: 'mdi:arrow-right',
                         label: '→'
@@ -2851,6 +3020,13 @@ function styleEditor() {
                     const isLastGroup = pageGroupItems.indexOf(pageGroupItems.find(p => p.group === group)) === pageGroupItems.length - 1;
                     const needsNext = !isLastGroupPage || !isLastGroup;
 
+                    // Get button positions for this page
+                    const pagePositions = this.getReservedButtonPositions({
+                        needsFolderUp: false,
+                        needsNext: needsNext,
+                        needsPrev: true // page-group pages always have prev
+                    });
+
                     const page = {
                         id: this.generateId(),
                         name: groupPageIndex === 0 ? group.name : `${group.name} ${groupPageIndex + 1}`,
@@ -2859,21 +3035,25 @@ function styleEditor() {
                         layout: this.createEmptyLayout()
                     };
 
-                    page.layout[navPositions.prev.row][navPositions.prev.col] = {
-                        type: 'nav-prev',
-                        icon: 'mdi:arrow-left',
-                        label: '←'
-                    };
+                    // Place prev button
+                    if (pagePositions.prev) {
+                        page.layout[pagePositions.prev.row][pagePositions.prev.col] = {
+                            type: 'nav-prev',
+                            icon: 'mdi:arrow-left',
+                            label: '←'
+                        };
+                    }
 
-                    if (needsNext) {
-                        page.layout[navPositions.next.row][navPositions.next.col] = {
+                    // Place next button if needed
+                    if (needsNext && pagePositions.next) {
+                        page.layout[pagePositions.next.row][pagePositions.next.col] = {
                             type: 'nav-next',
                             icon: 'mdi:arrow-right',
                             label: '→'
                         };
                     }
 
-                    const availableSlots = needsNext ? cellsPerPage - 2 : cellsPerPage - 1;
+                    const availableSlots = cellsPerPage - pagePositions.all.length;
                     const itemsForPage = remainingGroupItems.splice(0, availableSlots);
                     let slotIndex = 0;
 
@@ -2924,13 +3104,24 @@ function styleEditor() {
         buildFolderSubPages(group) {
             const pages = [];
             const cellsPerPage = this.deviceSize.cols * this.deviceSize.rows;
-            const folderNav = this.getFolderNavPositions();
 
             const entities = group.entities.map(id => this.getEntityById(id)).filter(Boolean);
             let remainingEntities = [...entities];
             let pageIndex = 0;
 
             while (remainingEntities.length > 0) {
+                // Determine what buttons this page needs
+                const needsNext = remainingEntities.length > (cellsPerPage - 2);
+                const needsPrev = pageIndex > 0;
+
+                // Get button positions using unified function
+                // Priority: folderUp (corner) > next > prev
+                const buttonPositions = this.getReservedButtonPositions({
+                    needsFolderUp: true,
+                    needsNext: needsNext,
+                    needsPrev: needsPrev
+                });
+
                 const page = {
                     id: this.generateId(),
                     name: pageIndex === 0 ? group.name : `${group.name} ${pageIndex + 1}`,
@@ -2940,39 +3131,36 @@ function styleEditor() {
                     layout: this.createEmptyLayout()
                 };
 
-                // Folder up button always present
-                page.layout[folderNav.folderUp.row][folderNav.folderUp.col] = {
-                    type: 'folder-up',
-                    icon: 'mdi:arrow-up',
-                    label: '↑',
-                    targetPageId: null // Will be linked to main
-                };
+                // Place folder up button at corner position
+                if (buttonPositions.folderUp) {
+                    page.layout[buttonPositions.folderUp.row][buttonPositions.folderUp.col] = {
+                        type: 'folder-up',
+                        icon: 'mdi:arrow-up',
+                        label: '↑',
+                        targetPageId: null // Will be linked to main
+                    };
+                }
 
-                // Check if we need next button
-                const needsNext = remainingEntities.length > (cellsPerPage - 2);
-                if (needsNext && folderNav.next) {
-                    page.layout[folderNav.next.row][folderNav.next.col] = {
+                // Place next button if needed
+                if (needsNext && buttonPositions.next) {
+                    page.layout[buttonPositions.next.row][buttonPositions.next.col] = {
                         type: 'nav-next',
                         icon: 'mdi:arrow-right',
                         label: '→'
                     };
                 }
 
-                // Need prev if not first folder page
-                if (pageIndex > 0 && folderNav.prev) {
-                    page.layout[folderNav.prev.row][folderNav.prev.col] = {
+                // Place prev button if needed
+                if (needsPrev && buttonPositions.prev) {
+                    page.layout[buttonPositions.prev.row][buttonPositions.prev.col] = {
                         type: 'nav-prev',
                         icon: 'mdi:arrow-left',
                         label: '←'
                     };
                 }
 
-                // Calculate available slots
-                let reservedSlots = 1; // folder-up
-                if (needsNext) reservedSlots++;
-                if (pageIndex > 0) reservedSlots++;
-
-                const availableSlots = cellsPerPage - reservedSlots;
+                // Fill with entities, skipping reserved positions
+                const availableSlots = cellsPerPage - buttonPositions.all.length;
                 const entitiesForPage = remainingEntities.splice(0, availableSlots);
                 let slotIndex = 0;
 
@@ -3088,41 +3276,94 @@ function styleEditor() {
         },
 
         /**
+         * Get reserved button positions based on what's needed
+         * Priority: folderUp (corner) > next > prev
+         * Buttons stack from corner inward
+         *
+         * @param {Object} options
+         * @param {boolean} options.needsFolderUp - Whether folder up button is needed
+         * @param {boolean} options.needsNext - Whether next arrow is needed
+         * @param {boolean} options.needsPrev - Whether prev arrow is needed
+         * @returns {{ folderUp: {row, col}|null, next: {row, col}|null, prev: {row, col}|null, all: Array<{row, col}> }}
+         */
+        getReservedButtonPositions({ needsFolderUp = false, needsNext = false, needsPrev = false }) {
+            const lastRow = this.deviceSize.rows - 1;
+            const lastCol = this.deviceSize.cols - 1;
+            const navPosition = this.theme.navStartPosition || 'bottom-right';
+            const folderUpPosition = this.theme.folderUpPosition || 'bottom-right';
+
+            // Determine corner and direction based on nav position
+            let cornerRow, cornerCol, direction;
+            switch (navPosition) {
+                case 'bottom-right':
+                    cornerRow = lastRow;
+                    cornerCol = lastCol;
+                    direction = -1; // Stack leftward
+                    break;
+                case 'bottom-left':
+                    cornerRow = lastRow;
+                    cornerCol = 0;
+                    direction = 1; // Stack rightward
+                    break;
+                case 'top-right':
+                    cornerRow = 0;
+                    cornerCol = lastCol;
+                    direction = -1; // Stack leftward
+                    break;
+                case 'top-left':
+                    cornerRow = 0;
+                    cornerCol = 0;
+                    direction = 1; // Stack rightward
+                    break;
+                default:
+                    cornerRow = lastRow;
+                    cornerCol = lastCol;
+                    direction = -1;
+            }
+
+            const result = { folderUp: null, next: null, prev: null, all: [] };
+            let currentCol = cornerCol;
+
+            // Priority 1: Folder up takes the corner
+            if (needsFolderUp) {
+                result.folderUp = { row: cornerRow, col: currentCol };
+                result.all.push(result.folderUp);
+                currentCol += direction;
+            }
+
+            // Priority 2: Next arrow (or takes corner if no folder up)
+            if (needsNext) {
+                // Bounds check
+                if (currentCol >= 0 && currentCol <= lastCol) {
+                    result.next = { row: cornerRow, col: currentCol };
+                    result.all.push(result.next);
+                    currentCol += direction;
+                }
+            }
+
+            // Priority 3: Prev arrow
+            if (needsPrev) {
+                // Bounds check
+                if (currentCol >= 0 && currentCol <= lastCol) {
+                    result.prev = { row: cornerRow, col: currentCol };
+                    result.all.push(result.prev);
+                }
+            }
+
+            return result;
+        },
+
+        /**
          * Get folder sub-page nav positions, accounting for folder-up priority
          * @returns {{ folderUp: {row, col}, prev: {row, col}|null, next: {row, col}|null }}
          */
         getFolderNavPositions() {
-            const folderUp = this.getFolderUpPosition(this.theme.folderUpPosition);
-            const navPositions = this.getNavPositions(this.theme.navStartPosition);
-            const lastCol = this.deviceSize.cols - 1;
-
-            // Check for conflicts - folder up takes priority
-            let prev = navPositions.prev;
-            let next = navPositions.next;
-
-            // If folder up conflicts with next, shift nav inward
-            if (folderUp.row === next.row && folderUp.col === next.col) {
-                // Shift both prev and next one position inward
-                if (this.theme.navStartPosition.includes('right')) {
-                    next = { row: next.row, col: next.col - 1 };
-                    prev = prev.col > 0 ? { row: prev.row, col: prev.col - 1 } : null;
-                } else {
-                    next = { row: next.row, col: next.col + 1 };
-                    prev = prev.col < lastCol ? { row: prev.row, col: prev.col + 1 } : null;
-                }
-            }
-            // If folder up conflicts with prev, shift nav inward
-            else if (folderUp.row === prev.row && folderUp.col === prev.col) {
-                if (this.theme.navStartPosition.includes('right')) {
-                    next = { row: next.row, col: next.col - 1 };
-                    prev = prev.col > 0 ? { row: prev.row, col: prev.col - 1 } : null;
-                } else {
-                    next = { row: next.row, col: next.col + 1 };
-                    prev = prev.col < lastCol ? { row: prev.row, col: prev.col + 1 } : null;
-                }
-            }
-
-            return { folderUp, prev, next };
+            // Use the new unified function
+            return this.getReservedButtonPositions({
+                needsFolderUp: true,
+                needsNext: true,
+                needsPrev: true
+            });
         },
 
         // ========== Label Helpers ==========
@@ -3223,6 +3464,8 @@ function styleEditor() {
             if (prop !== 'preset') {
                 this.groupStyles[groupName].preset = null;
             }
+            // Save state for persistence
+            this.saveState();
         },
 
         /**
@@ -3237,11 +3480,42 @@ function styleEditor() {
 
         /**
          * Refresh preview pages
+         * @param {boolean} resetToMain - If true, reset to main page. If false, try to preserve current page.
          */
-        refreshPreviewPages() {
+        refreshPreviewPages(resetToMain = false) {
+            const oldPageName = this.previewPages[this.currentPreviewPageIndex]?.name;
+            const oldPageType = this.previewPages[this.currentPreviewPageIndex]?.type;
+            const oldGroupName = this.previewPages[this.currentPreviewPageIndex]?.groupName;
+
             this.previewPages = this.buildPagesFromStyleEditor();
-            this.currentPreviewPageIndex = 0;
-            this.previewPageStack = [];
+
+            if (resetToMain) {
+                this.currentPreviewPageIndex = 0;
+                this.previewPageStack = [];
+            } else {
+                // Try to find the same page by name/type/group
+                let newIndex = 0;
+                if (oldPageName) {
+                    const matchIndex = this.previewPages.findIndex(p =>
+                        p.name === oldPageName &&
+                        p.type === oldPageType &&
+                        p.groupName === oldGroupName
+                    );
+                    if (matchIndex >= 0) {
+                        newIndex = matchIndex;
+                    } else {
+                        // Fallback: try to find by type and group
+                        const fallbackIndex = this.previewPages.findIndex(p =>
+                            p.type === oldPageType && p.groupName === oldGroupName
+                        );
+                        if (fallbackIndex >= 0) {
+                            newIndex = fallbackIndex;
+                        }
+                    }
+                }
+                this.currentPreviewPageIndex = Math.min(newIndex, this.previewPages.length - 1);
+            }
+
             this.preloadPreviewIcons();
         },
 
@@ -3671,6 +3945,7 @@ function styleEditor() {
             }
 
             this.refreshPreviewPages();
+            this.saveState();
         },
 
         /**
@@ -3799,6 +4074,280 @@ function styleEditor() {
 
             this.status = `Applied "${defaultThemeName}" theme`;
             this.refreshPreviewPages();
+            this.saveState();
+        },
+
+        /**
+         * Export current configuration to a JSON file
+         */
+        async exportConfig() {
+            const config = {
+                version: 1,
+                exportDate: new Date().toISOString(),
+                groups: this.wizardSelections.groups.map(g => ({
+                    name: g.name,
+                    entities: g.entities,
+                    displayType: g.displayType || 'folder',
+                    expanded: false // Don't save UI state
+                })),
+                ungroupedEntities: this.wizardSelections.ungroupedEntities,
+                groupStyles: JSON.parse(JSON.stringify(this.groupStyles)),
+                ungroupedStyle: JSON.parse(JSON.stringify(this.ungroupedStyle)),
+                theme: JSON.parse(JSON.stringify(this.theme)),
+                currentPreset: this.currentPreset
+            };
+
+            const jsonContent = JSON.stringify(config, null, 2);
+            const suggestedName = `deck-assistant-config-${new Date().toISOString().slice(0, 10)}.json`;
+
+            try {
+                // Use File System Access API for "Save As" dialog
+                const handle = await window.showSaveFilePicker({
+                    suggestedName: suggestedName,
+                    types: [{
+                        description: 'JSON Files',
+                        accept: { 'application/json': ['.json'] }
+                    }]
+                });
+
+                const writable = await handle.createWritable();
+                await writable.write(jsonContent);
+                await writable.close();
+
+                this.status = `Configuration saved to ${handle.name}`;
+            } catch (err) {
+                // User cancelled or API not available
+                if (err.name !== 'AbortError') {
+                    console.error('Export failed:', err);
+                    this.status = 'Export cancelled or failed';
+                }
+            }
+        },
+
+        /**
+         * Trigger the file input for importing config (from footer)
+         */
+        triggerImportConfig() {
+            this.$refs.importFileInput.click();
+        },
+
+        /**
+         * Trigger the file input for importing config (from wizard)
+         */
+        triggerWizardImport() {
+            this.$refs.wizardImportInput.click();
+        },
+
+        /**
+         * Import configuration from wizard - closes wizard on success
+         */
+        async importConfigFromWizard(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const config = JSON.parse(text);
+
+                if (!config.version || !config.groups) {
+                    this.status = 'Invalid configuration file';
+                    return;
+                }
+
+                // Track entities that no longer exist
+                const missingEntities = [];
+                const availableEntityIds = new Set(this.allEntities.map(e => e.entity_id));
+
+                // Validate and filter groups
+                const validGroups = config.groups.map(group => {
+                    const validEntities = [];
+                    for (const entityId of group.entities || []) {
+                        if (availableEntityIds.has(entityId)) {
+                            validEntities.push(entityId);
+                        } else {
+                            missingEntities.push({ entityId, groupName: group.name });
+                        }
+                    }
+                    return {
+                        name: group.name,
+                        entities: validEntities,
+                        displayType: group.displayType || 'folder',
+                        expanded: false
+                    };
+                }).filter(g => g.entities.length > 0);
+
+                // Validate ungrouped entities
+                const validUngrouped = [];
+                for (const entityId of config.ungroupedEntities || []) {
+                    if (availableEntityIds.has(entityId)) {
+                        validUngrouped.push(entityId);
+                    } else {
+                        missingEntities.push({ entityId, groupName: 'Ungrouped' });
+                    }
+                }
+
+                // Apply the imported configuration
+                this.wizardSelections.groups = validGroups;
+                this.wizardSelections.ungroupedEntities = validUngrouped;
+
+                // Apply styles (only for groups that still exist)
+                if (config.groupStyles) {
+                    this.groupStyles = {};
+                    const validGroupNames = new Set(validGroups.map(g => g.name));
+                    for (const [groupName, style] of Object.entries(config.groupStyles)) {
+                        if (validGroupNames.has(groupName)) {
+                            this.groupStyles[groupName] = { ...style };
+                        }
+                    }
+                }
+
+                if (config.ungroupedStyle) {
+                    this.ungroupedStyle = { ...config.ungroupedStyle };
+                }
+
+                if (config.theme) {
+                    this.theme = { ...this.theme, ...config.theme };
+                }
+
+                if (config.currentPreset) {
+                    this.currentPreset = config.currentPreset;
+                }
+
+                // Close wizard and go to style editor
+                this.showWizard = false;
+                this.wizardComplete = true;
+
+                // Refresh the preview
+                this.refreshPreviewPages();
+
+                // Save state for persistence
+                this.saveState();
+
+                // Report status
+                if (missingEntities.length > 0) {
+                    const removedGroups = config.groups.length - validGroups.length;
+                    let statusMsg = `Imported ${validGroups.length} groups`;
+                    if (removedGroups > 0) {
+                        statusMsg += ` (${removedGroups} empty groups removed)`;
+                    }
+                    statusMsg += `. ${missingEntities.length} entities no longer available.`;
+                    this.status = statusMsg;
+                    console.log('Missing entities:', missingEntities);
+                } else {
+                    this.status = `Imported ${validGroups.length} groups successfully`;
+                }
+
+            } catch (error) {
+                console.error('Import error:', error);
+                this.status = 'Failed to import: ' + error.message;
+            }
+
+            // Reset file input
+            event.target.value = '';
+        },
+
+        /**
+         * Import configuration from a JSON file (from footer)
+         */
+        async importConfig(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const config = JSON.parse(text);
+
+                if (!config.version || !config.groups) {
+                    this.status = 'Invalid configuration file';
+                    return;
+                }
+
+                // Track entities that no longer exist
+                const missingEntities = [];
+                const availableEntityIds = new Set(this.allEntities.map(e => e.entity_id));
+
+                // Validate and filter groups
+                const validGroups = config.groups.map(group => {
+                    const validEntities = [];
+                    for (const entityId of group.entities || []) {
+                        if (availableEntityIds.has(entityId)) {
+                            validEntities.push(entityId);
+                        } else {
+                            missingEntities.push({ entityId, groupName: group.name });
+                        }
+                    }
+                    return {
+                        name: group.name,
+                        entities: validEntities,
+                        displayType: group.displayType || 'folder',
+                        expanded: false
+                    };
+                }).filter(g => g.entities.length > 0); // Remove empty groups
+
+                // Validate ungrouped entities
+                const validUngrouped = [];
+                for (const entityId of config.ungroupedEntities || []) {
+                    if (availableEntityIds.has(entityId)) {
+                        validUngrouped.push(entityId);
+                    } else {
+                        missingEntities.push({ entityId, groupName: 'Ungrouped' });
+                    }
+                }
+
+                // Apply the imported configuration
+                this.wizardSelections.groups = validGroups;
+                this.wizardSelections.ungroupedEntities = validUngrouped;
+
+                // Apply styles (only for groups that still exist)
+                if (config.groupStyles) {
+                    this.groupStyles = {};
+                    const validGroupNames = new Set(validGroups.map(g => g.name));
+                    for (const [groupName, style] of Object.entries(config.groupStyles)) {
+                        if (validGroupNames.has(groupName)) {
+                            this.groupStyles[groupName] = { ...style };
+                        }
+                    }
+                }
+
+                if (config.ungroupedStyle) {
+                    this.ungroupedStyle = { ...config.ungroupedStyle };
+                }
+
+                if (config.theme) {
+                    this.theme = { ...this.theme, ...config.theme };
+                }
+
+                if (config.currentPreset) {
+                    this.currentPreset = config.currentPreset;
+                }
+
+                // Refresh the preview
+                this.refreshPreviewPages();
+
+                // Save state for persistence
+                this.saveState();
+
+                // Report status
+                if (missingEntities.length > 0) {
+                    const removedGroups = config.groups.length - validGroups.length;
+                    let statusMsg = `Imported ${validGroups.length} groups`;
+                    if (removedGroups > 0) {
+                        statusMsg += ` (${removedGroups} empty groups removed)`;
+                    }
+                    statusMsg += `. ${missingEntities.length} entities no longer available.`;
+                    this.status = statusMsg;
+                    console.log('Missing entities:', missingEntities);
+                } else {
+                    this.status = `Imported ${validGroups.length} groups successfully`;
+                }
+
+            } catch (error) {
+                console.error('Import error:', error);
+                this.status = 'Failed to import: ' + error.message;
+            }
+
+            // Reset file input
+            event.target.value = '';
         }
     };
 }

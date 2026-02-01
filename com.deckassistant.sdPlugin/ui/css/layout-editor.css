@@ -479,11 +479,21 @@ body {
 /* Footer */
 .footer {
     display: flex;
-    justify-content: flex-end;
-    gap: 12px;
+    justify-content: space-between;
+    align-items: center;
     padding: 16px 20px;
     background: #252525;
     border-top: 1px solid #333;
+}
+
+.footer-left {
+    display: flex;
+    gap: 8px;
+}
+
+.footer-right {
+    display: flex;
+    gap: 12px;
 }
 
 .btn {
@@ -494,6 +504,11 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 11px;
 }
 
 .btn-secondary {
@@ -925,6 +940,16 @@ body {
 
 .wizard-steps-list li {
     margin: 8px 0;
+}
+
+.wizard-import-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #333;
+}
+
+.wizard-import-section .btn {
+    margin-top: 8px;
 }
 
 .wizard-note {

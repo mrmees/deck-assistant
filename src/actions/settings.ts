@@ -193,6 +193,11 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
       await this.handleGetFullRegistry();
     } else if (event === "getThemes") {
       await this.handleGetThemes();
+    } else if (event === "exportConfig") {
+      const config = payload?.config as JsonObject;
+      if (config) {
+        await this.handleExportConfig(config);
+      }
     }
   }
 
@@ -629,6 +634,34 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
         event: "themes",
         themes: null,
         error: errorMessage,
+      });
+    }
+  }
+
+  /**
+   * Handle exportConfig request from Style Editor
+   */
+  private async handleExportConfig(config: JsonObject): Promise<void> {
+    try {
+      const filename = `deck-assistant-config-${new Date().toISOString().slice(0, 10)}.json`;
+      const downloadsPath = join(homedir(), "Downloads");
+      const filePath = join(downloadsPath, filename);
+
+      // Write the config as formatted JSON
+      await writeFile(filePath, JSON.stringify(config, null, 2), "utf-8");
+      logger.info(`Configuration exported to: ${filePath}`);
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "configExported",
+        filePath: filePath,
+        filename: filename,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to export config: ${errorMessage}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "error",
+        message: `Failed to export configuration: ${errorMessage}`,
       });
     }
   }

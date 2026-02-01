@@ -290,7 +290,7 @@
                             <div class="setting-row">
                                 <label class="setting-label">Nav Buttons</label>
                                 <select class="setting-select" x-model="theme.navStartPosition"
-                                        @change="refreshPreviewPages()">
+                                        @change="refreshPreviewPages(); saveState()">
                                     <option value="bottom-right">Bottom Right</option>
                                     <option value="bottom-left">Bottom Left</option>
                                     <option value="top-right">Top Right</option>
@@ -301,7 +301,7 @@
                             <div class="setting-row">
                                 <label class="setting-label">Folder Up</label>
                                 <select class="setting-select" x-model="theme.folderUpPosition"
-                                        @change="refreshPreviewPages()">
+                                        @change="refreshPreviewPages(); saveState()">
                                     <option value="bottom-right">Bottom Right</option>
                                     <option value="bottom-left">Bottom Left</option>
                                     <option value="top-right">Top Right</option>
@@ -348,12 +348,23 @@
         <!-- Footer -->
         <template x-if="!loading && connected && wizardComplete">
             <footer class="footer">
-                <button class="btn btn-secondary" @click="startWizard()">
-                    Reconfigure
-                </button>
-                <button class="btn btn-primary" @click="showProfileNameModal = true">
-                    Generate Profile
-                </button>
+                <div class="footer-left">
+                    <button class="btn btn-secondary btn-small" @click="exportConfig()" title="Export configuration">
+                        Export
+                    </button>
+                    <button class="btn btn-secondary btn-small" @click="triggerImportConfig()" title="Import configuration">
+                        Import
+                    </button>
+                    <input type="file" x-ref="importFileInput" @change="importConfig($event)" accept=".json" style="display: none;">
+                </div>
+                <div class="footer-right">
+                    <button class="btn btn-secondary" @click="startWizard()">
+                        Reconfigure
+                    </button>
+                    <button class="btn btn-primary" @click="showProfileNameModal = true">
+                        Generate Profile
+                    </button>
+                </div>
             </footer>
         </template>
 
@@ -473,6 +484,14 @@
                                     <li>Pick specific entities</li>
                                     <li>Organize them by room or device type</li>
                                 </ul>
+
+                                <div class="wizard-import-section">
+                                    <p class="wizard-section-header">Have a saved configuration?</p>
+                                    <button class="btn btn-secondary" @click="triggerWizardImport()">
+                                        Import Configuration
+                                    </button>
+                                    <input type="file" x-ref="wizardImportInput" @change="importConfigFromWizard($event)" accept=".json" style="display: none;">
+                                </div>
 
                             </div>
                         </template>
@@ -631,7 +650,13 @@
                                                 <span class="wizard-drag-handle">&#8801;</span>
                                                 <span class="wizard-item-name" x-text="group.name"></span>
                                                 <span class="wizard-item-count" x-text="group.entities.length + ' items'"></span>
-                                                <span class="wizard-display-locked">Page</span>
+                                                <select class="wizard-display-select"
+                                                        :value="group.displayType"
+                                                        @change="setGroupDisplayType(group.name, $event.target.value)">
+                                                    <option value="folder">Folder</option>
+                                                    <option value="flat">Flat</option>
+                                                    <option value="page">Page</option>
+                                                </select>
                                             </div>
                                         </template>
 
