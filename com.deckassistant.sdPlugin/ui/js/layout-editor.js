@@ -25,7 +25,8 @@ const ENTITY_CATEGORIES = {
 
 // Default category colors
 const DEFAULT_CATEGORY_COLORS = {
-    onOff: '#4CAF50',       // Green for controllable
+    onColor: '#4CAF50',     // Green for controllable (on)
+    offColor: '#9E9E9E',    // Gray for controllable (off)
     information: '#2196F3', // Blue for sensors
     trigger: '#FF9800'      // Orange for automations
 };
@@ -283,11 +284,12 @@ function styleEditor() {
         },
 
         // Style Editor State
-        groupStyles: {}, // { groupName: { background, onOff, information, trigger } }
+        groupStyles: {}, // { groupName: { background, onColor, offColor, information, trigger } }
         ungroupedStyle: {
             preset: null,
             background: '#1a1a2e',
-            onOff: '#4CAF50',
+            onColor: '#4CAF50',
+            offColor: '#9E9E9E',
             information: '#2196F3',
             trigger: '#FF9800',
             labelStyle: 'name'  // 'none' | 'name' | 'state' | 'name-and-state'
@@ -307,7 +309,8 @@ function styleEditor() {
             modern: {
                 name: 'Modern',
                 background: '#1a1a2e',
-                onOff: '#4CAF50',
+                onColor: '#4CAF50',
+                offColor: '#9E9E9E',
                 information: '#2196F3',
                 trigger: '#FF9800',
                 labelStyle: 'name'
@@ -315,7 +318,8 @@ function styleEditor() {
             classic: {
                 name: 'Classic',
                 background: '#2d2d2d',
-                onOff: '#66BB6A',
+                onColor: '#66BB6A',
+                offColor: '#757575',
                 information: '#42A5F5',
                 trigger: '#FFA726',
                 labelStyle: 'name'
@@ -323,7 +327,8 @@ function styleEditor() {
             minimal: {
                 name: 'Minimal',
                 background: '#000000',
-                onOff: '#FFFFFF',
+                onColor: '#FFFFFF',
+                offColor: '#555555',
                 information: '#CCCCCC',
                 trigger: '#999999',
                 labelStyle: 'none'
@@ -331,10 +336,15 @@ function styleEditor() {
             vibrant: {
                 name: 'Vibrant',
                 background: '#1a1a2e',
-                onOff: '#00E676',
+                onColor: '#00E676',
+                offColor: '#FF5252',
                 information: '#00B0FF',
                 trigger: '#FF6D00',
                 labelStyle: 'name'
+            },
+            ha: {
+                name: 'Match Home Assistant',
+                dynamic: true  // Flag to indicate this needs fetching from HA
             }
         },
 
@@ -691,6 +701,12 @@ function styleEditor() {
                     this.status = 'Profile generated!';
                     break;
 
+                case 'themes':
+                    // Handle HA themes data for "Match Home Assistant" preset
+                    if (this._pendingHAThemeTarget !== undefined) {
+                        this.applyHAThemeColors(payload.themes);
+                    }
+                    break;
 
                 case 'error':
                     alert('Error: ' + payload.message);
@@ -784,19 +800,20 @@ function styleEditor() {
 
         /**
          * Get the icon/text color for an entity based on its category and group style
+         * Note: Returns "on" color for preview (controllable entities shown in active state)
          */
         getEntityCategoryColor(entity, groupStyle) {
             const category = this.getEntityCategory(entity);
 
             switch (category) {
                 case 'controllable':
-                    return groupStyle.onOff || DEFAULT_CATEGORY_COLORS.onOff;
+                    return groupStyle.onColor || DEFAULT_CATEGORY_COLORS.onColor;
                 case 'informational':
                     return groupStyle.information || DEFAULT_CATEGORY_COLORS.information;
                 case 'trigger':
                     return groupStyle.trigger || DEFAULT_CATEGORY_COLORS.trigger;
                 default:
-                    return groupStyle.onOff || DEFAULT_CATEGORY_COLORS.onOff;
+                    return groupStyle.onColor || DEFAULT_CATEGORY_COLORS.onColor;
             }
         },
 
@@ -2308,7 +2325,8 @@ function styleEditor() {
             this.ungroupedStyle = {
                 preset: this.currentPreset,
                 background: preset.background,
-                onOff: preset.onOff,
+                onColor: preset.onColor,
+                offColor: preset.offColor,
                 information: preset.information,
                 trigger: preset.trigger
             };
@@ -2334,7 +2352,8 @@ function styleEditor() {
                         this.groupStyles[group.name] = {
                             preset: this.currentPreset,
                             background: preset.background,
-                            onOff: preset.onOff,
+                            onColor: preset.onColor,
+                            offColor: preset.offColor,
                             information: preset.information,
                             trigger: preset.trigger
                         };
@@ -3184,7 +3203,8 @@ function styleEditor() {
             return {
                 preset: null,
                 background: '#1a1a2e',
-                onOff: '#4CAF50',
+                onColor: '#4CAF50',
+                offColor: '#9E9E9E',
                 information: '#2196F3',
                 trigger: '#FF9800',
                 labelStyle: 'name'
@@ -3585,20 +3605,27 @@ function styleEditor() {
 
         /**
          * Apply a theme preset to a specific group or all groups
-         * @param {string} presetName - The preset name (modern, classic, minimal, vibrant)
+         * @param {string} presetName - The preset name (modern, classic, minimal, vibrant, ha)
          * @param {string} [groupName] - Optional group name. If omitted, applies to all groups and ungrouped.
          *                               Use '__ungrouped__' for ungrouped entities only.
          */
-        applyPreset(presetName, groupName) {
+        async applyPreset(presetName, groupName) {
             const preset = this.themePresets[presetName];
             if (!preset) return;
+
+            // Handle dynamic HA theme preset
+            if (preset.dynamic && presetName === 'ha') {
+                await this.applyHATheme(groupName);
+                return;
+            }
 
             if (groupName === '__ungrouped__') {
                 // Apply to ungrouped only
                 this.ungroupedStyle = {
                     preset: presetName,
                     background: preset.background,
-                    onOff: preset.onOff,
+                    onColor: preset.onColor,
+                    offColor: preset.offColor,
                     information: preset.information,
                     trigger: preset.trigger,
                     labelStyle: preset.labelStyle || 'name'
@@ -3608,7 +3635,8 @@ function styleEditor() {
                 this.groupStyles[groupName] = {
                     preset: presetName,
                     background: preset.background,
-                    onOff: preset.onOff,
+                    onColor: preset.onColor,
+                    offColor: preset.offColor,
                     information: preset.information,
                     trigger: preset.trigger,
                     labelStyle: preset.labelStyle || 'name'
@@ -3621,7 +3649,8 @@ function styleEditor() {
                     this.groupStyles[group.name] = {
                         preset: presetName,
                         background: preset.background,
-                        onOff: preset.onOff,
+                        onColor: preset.onColor,
+                        offColor: preset.offColor,
                         information: preset.information,
                         trigger: preset.trigger,
                         labelStyle: preset.labelStyle || 'name'
@@ -3631,7 +3660,8 @@ function styleEditor() {
                 this.ungroupedStyle = {
                     preset: presetName,
                     background: preset.background,
-                    onOff: preset.onOff,
+                    onColor: preset.onColor,
+                    offColor: preset.offColor,
                     information: preset.information,
                     trigger: preset.trigger,
                     labelStyle: preset.labelStyle || 'name'
@@ -3640,6 +3670,134 @@ function styleEditor() {
                 this.theme.backgroundColor = preset.background;
             }
 
+            this.refreshPreviewPages();
+        },
+
+        /**
+         * Apply Home Assistant theme colors
+         * Fetches theme data from HA and extracts colors
+         */
+        async applyHATheme(groupName) {
+            if (!this.connected) {
+                this.status = 'Must be connected to Home Assistant to use this preset';
+                return;
+            }
+
+            this.status = 'Fetching Home Assistant theme...';
+
+            // Request themes from plugin
+            this.sendToPlugin({ event: 'getThemes' });
+
+            // Wait for response (will be handled by message listener)
+            // The handlePluginMessage will call applyHAThemeColors when themes arrive
+            this._pendingHAThemeTarget = groupName;
+        },
+
+        /**
+         * Apply HA theme colors once received from plugin
+         */
+        applyHAThemeColors(themesData) {
+            const groupName = this._pendingHAThemeTarget;
+            delete this._pendingHAThemeTarget;
+
+            if (!themesData?.themes) {
+                this.status = 'Could not fetch Home Assistant themes';
+                return;
+            }
+
+            // Get the default theme or first available theme
+            const defaultThemeName = themesData.default_theme || Object.keys(themesData.themes)[0];
+            const theme = themesData.themes[defaultThemeName];
+            if (!theme) {
+                this.status = 'No themes found in Home Assistant';
+                return;
+            }
+
+            // Helper to extract color value (resolve CSS variables and rgb formats)
+            const extractColor = (value, fallback) => {
+                if (!value) return fallback;
+                // Handle rgb() format - extract and format
+                if (value.startsWith('rgb(')) {
+                    return value;
+                }
+                // Handle var() references - try to resolve
+                if (value.startsWith('var(')) {
+                    const varName = value.match(/var\(--?([^)]+)\)/)?.[1];
+                    if (varName && theme['--' + varName]) {
+                        return extractColor(theme['--' + varName], fallback);
+                    }
+                    if (varName && theme[varName]) {
+                        return extractColor(theme[varName], fallback);
+                    }
+                    return fallback;
+                }
+                // Handle comma-separated RGB values like "141, 253, 166"
+                if (/^\d+\s*,\s*\d+\s*,\s*\d+$/.test(value.trim())) {
+                    return `rgb(${value.trim()})`;
+                }
+                // Handle hex colors
+                if (value.startsWith('#')) {
+                    return value;
+                }
+                return fallback;
+            };
+
+            // Extract colors from HA theme
+            const background = extractColor(
+                theme['token-color-background-base'] ||
+                theme['primary-background-color'] ||
+                theme['lovelace-background'],
+                '#1a1a2e'
+            );
+            const onColor = extractColor(
+                theme['token-color-feedback-success'] ||
+                theme['success-color'] ||
+                theme['state-on-color'],
+                '#4CAF50'
+            );
+            const offColor = extractColor(
+                theme['token-color-feedback-error'] ||
+                theme['error-color'] ||
+                theme['state-off-color'],
+                '#9E9E9E'
+            );
+            const information = extractColor(
+                theme['token-color-feedback-info'] ||
+                theme['info-color'],
+                '#2196F3'
+            );
+            const trigger = extractColor(
+                theme['token-color-feedback-warning'] ||
+                theme['warning-color'],
+                '#FF9800'
+            );
+
+            const haStyle = {
+                preset: 'ha',
+                background,
+                onColor,
+                offColor,
+                information,
+                trigger,
+                labelStyle: 'name'
+            };
+
+            // Apply to target
+            if (groupName === '__ungrouped__') {
+                this.ungroupedStyle = { ...haStyle };
+            } else if (groupName) {
+                this.groupStyles[groupName] = { ...haStyle };
+            } else {
+                // Apply to all
+                this.currentPreset = 'ha';
+                for (const group of this.wizardSelections.groups || []) {
+                    this.groupStyles[group.name] = { ...haStyle };
+                }
+                this.ungroupedStyle = { ...haStyle };
+                this.theme.backgroundColor = background;
+            }
+
+            this.status = `Applied "${defaultThemeName}" theme`;
             this.refreshPreviewPages();
         }
     };

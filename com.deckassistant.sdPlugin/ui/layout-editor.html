@@ -73,6 +73,7 @@
                                                     <option value="classic">Classic</option>
                                                     <option value="minimal">Minimal</option>
                                                     <option value="vibrant">Vibrant</option>
+                                                    <option value="ha">Match Home Assistant</option>
                                                 </select>
                                             </div>
                                             <div class="style-control-row">
@@ -82,10 +83,16 @@
                                                        @input="setGroupStyleProp(group.name, 'background', $event.target.value)">
                                             </div>
                                             <div class="style-control-row">
-                                                <label>On/Off</label>
+                                                <label>On</label>
                                                 <input type="color"
-                                                       :value="getGroupStyle(group.name).onOff"
-                                                       @input="setGroupStyleProp(group.name, 'onOff', $event.target.value)">
+                                                       :value="getGroupStyle(group.name).onColor"
+                                                       @input="setGroupStyleProp(group.name, 'onColor', $event.target.value)">
+                                            </div>
+                                            <div class="style-control-row">
+                                                <label>Off</label>
+                                                <input type="color"
+                                                       :value="getGroupStyle(group.name).offColor"
+                                                       @input="setGroupStyleProp(group.name, 'offColor', $event.target.value)">
                                             </div>
                                             <div class="style-control-row">
                                                 <label>Information</label>
@@ -153,6 +160,7 @@
                                                         <option value="classic">Classic</option>
                                                         <option value="minimal">Minimal</option>
                                                         <option value="vibrant">Vibrant</option>
+                                                        <option value="ha">Match Home Assistant</option>
                                                     </select>
                                                 </div>
                                                 <div class="style-control-row">
@@ -162,10 +170,16 @@
                                                            @input="ungroupedStyle.background = $event.target.value">
                                                 </div>
                                                 <div class="style-control-row">
-                                                    <label>On/Off</label>
+                                                    <label>On</label>
                                                     <input type="color"
-                                                           :value="ungroupedStyle.onOff"
-                                                           @input="ungroupedStyle.onOff = $event.target.value">
+                                                           :value="ungroupedStyle.onColor"
+                                                           @input="ungroupedStyle.onColor = $event.target.value">
+                                                </div>
+                                                <div class="style-control-row">
+                                                    <label>Off</label>
+                                                    <input type="color"
+                                                           :value="ungroupedStyle.offColor"
+                                                           @input="ungroupedStyle.offColor = $event.target.value">
                                                 </div>
                                                 <div class="style-control-row">
                                                     <label>Information</label>

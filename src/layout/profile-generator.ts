@@ -10,7 +10,8 @@ import JSZip from "jszip";
 
 interface GroupStyle {
     background: string;
-    onOff: string;
+    onColor: string;
+    offColor: string;
     information: string;
     trigger: string;
     labelStyle?: 'none' | 'name' | 'state' | 'name-and-state';
@@ -35,7 +36,8 @@ const ENTITY_CATEGORIES = {
 
 const DEFAULT_GROUP_STYLE: GroupStyle = {
     background: '#1a1a2e',
-    onOff: '#4CAF50',
+    onColor: '#4CAF50',
+    offColor: '#9E9E9E',
     information: '#2196F3',
     trigger: '#FF9800',
     labelStyle: 'name'
@@ -115,19 +117,21 @@ function profileFolderId(profileId: string): string {
 }
 
 /**
- * Get the category color for an entity based on its domain
+ * Get the category colors (on/off) for an entity based on its domain
  */
-function getEntityCategoryColor(domain: string, style: GroupStyle): string {
+function getEntityCategoryColors(domain: string, style: GroupStyle): { on: string; off: string } {
     if (ENTITY_CATEGORIES.controllable.includes(domain)) {
-        return style.onOff;
+        return { on: style.onColor, off: style.offColor };
     }
     if (ENTITY_CATEGORIES.informational.includes(domain)) {
-        return style.information;
+        // Informational entities use same color for both states
+        return { on: style.information, off: style.information };
     }
     if (ENTITY_CATEGORIES.trigger.includes(domain)) {
-        return style.trigger;
+        // Trigger entities use same color for both states
+        return { on: style.trigger, off: style.trigger };
     }
-    return style.onOff; // Default to controllable color
+    return { on: style.onColor, off: style.offColor }; // Default to controllable colors
 }
 
 /**
@@ -329,9 +333,7 @@ function createEntityButtonAction(
 ): ProfileAction {
     const domain = entity.domain || 'unknown';
     const style = getGroupStyle(entity.groupName, config.groupStyles, config.ungroupedStyle);
-    const categoryColor = getEntityCategoryColor(domain, style);
-    const iconColor = categoryColor;
-    const textColor = categoryColor;
+    const categoryColors = getEntityCategoryColors(domain, style);
     const backgroundColor = style.background;
     const friendlyName = entity.friendly_name || entity.label || entity.entity_id || 'Entity';
     const labelStyle = style.labelStyle || 'name';
@@ -343,8 +345,9 @@ function createEntityButtonAction(
             domain: domain,
             friendlyName: friendlyName,
             iconSource: "domain",
-            iconColor: iconColor,
-            textColor: textColor,
+            // Separate colors for on/off states
+            iconColorOn: categoryColors.on,
+            iconColorOff: categoryColors.off,
             backgroundColor: backgroundColor,
             // Label settings - our plugin renders text based on these
             labelStyle: labelStyle,

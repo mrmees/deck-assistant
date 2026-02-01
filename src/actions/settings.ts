@@ -191,6 +191,8 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
       await this.handleGetFloors();
     } else if (event === "getFullRegistry") {
       await this.handleGetFullRegistry();
+    } else if (event === "getThemes") {
+      await this.handleGetThemes();
     }
   }
 
@@ -596,6 +598,37 @@ export class SettingsAction extends SingletonAction<SettingsActionSettings> {
         entityRegistry: [],
         devices: [],
         labels: [],
+      });
+    }
+  }
+
+  /**
+   * Handle getThemes request - returns HA frontend themes
+   */
+  private async handleGetThemes(): Promise<void> {
+    if (!haConnection.isConnected()) {
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "themes",
+        themes: null,
+        error: "Not connected to Home Assistant",
+      });
+      return;
+    }
+
+    try {
+      const themes = await haConnection.getThemes();
+
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "themes",
+        themes: themes,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`Failed to get themes: ${errorMessage}`);
+      await streamDeck.ui.current?.sendToPropertyInspector({
+        event: "themes",
+        themes: null,
+        error: errorMessage,
       });
     }
   }

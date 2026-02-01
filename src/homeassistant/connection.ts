@@ -171,6 +171,25 @@ export class HomeAssistantConnection {
   }
 
   /**
+   * Get frontend themes from Home Assistant
+   */
+  async getThemes(): Promise<any> {
+    if (!this.connection) {
+      throw new Error("Not connected to Home Assistant");
+    }
+
+    try {
+      const themes = await this.connection.sendMessagePromise<any>({
+        type: "frontend/get_themes",
+      });
+      return themes;
+    } catch (error) {
+      console.error("Failed to fetch themes:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Subscribe to entity state changes
    */
   subscribeToEntities(callback: EntityCallback): () => void {
