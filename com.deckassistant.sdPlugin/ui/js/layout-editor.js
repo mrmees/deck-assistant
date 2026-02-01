@@ -156,12 +156,51 @@ function layoutEditor() {
         wizardSelections: {
             areas: [],
             domains: [],
-            entities: []
+            entities: [],
+            grouping: 'by-area'
         },
         wizardSteps: [
-            { title: 'Select Areas', subtitle: 'Which rooms do you want to control?' },
-            { title: 'Select Types', subtitle: 'What kinds of devices?' },
-            { title: 'Select Entities', subtitle: 'Pick specific entities' }
+            {
+                id: 'welcome',
+                title: 'Welcome to Deck Assistant',
+                subtitle: 'Let\'s set up your Stream Deck with Home Assistant entities.',
+                type: 'info'
+            },
+            {
+                id: 'areas',
+                title: 'Select Areas',
+                subtitle: 'Which rooms do you want to control?',
+                type: 'multiselect'
+            },
+            {
+                id: 'domains',
+                title: 'Select Device Types',
+                subtitle: 'What kinds of devices in those areas?',
+                type: 'multiselect'
+            },
+            {
+                id: 'entities',
+                title: 'Select Entities',
+                subtitle: 'Choose the specific devices to include.',
+                type: 'multiselect'
+            },
+            {
+                id: 'grouping',
+                title: 'Organize Layout',
+                subtitle: 'How should entities be grouped?',
+                type: 'choice',
+                options: [
+                    { id: 'by-area', name: 'By Room/Area', description: 'Group entities by their Home Assistant area' },
+                    { id: 'by-domain', name: 'By Device Type', description: 'Group lights together, switches together, etc.' },
+                    { id: 'flat', name: 'No Grouping', description: 'All entities on a single page' }
+                ]
+            },
+            {
+                id: 'confirm',
+                title: 'Ready to Configure',
+                subtitle: 'We\'ll save these preferences to Home Assistant labels.',
+                type: 'confirm'
+            }
         ],
 
         // ========== Initialization ==========
@@ -623,56 +662,132 @@ function layoutEditor() {
             this.wizardSelections = {
                 areas: [],
                 domains: [],
-                entities: []
+                entities: [],
+                grouping: 'by-area'
             };
         },
 
         getWizardOptions() {
-            switch (this.wizardStep) {
-                case 0: // Areas
-                    return this.areas.map(a => ({ id: a.area_id, name: a.name }));
-                case 1: // Domains
-                    return this.uniqueDomains.map(d => ({ id: d, name: d }));
-                case 2: // Entities
+            const currentStep = this.wizardSteps[this.wizardStep];
+
+            switch (currentStep.id) {
+                case 'welcome':
+                    return [];
+
+                case 'areas':
+                    // Include "Unassigned" for entities without area
+                    const areaOptions = this.areas.map(a => ({ id: a.area_id, name: a.name }));
+                    const hasUnassigned = this.allEntities.some(e => !e.area_id);
+                    if (hasUnassigned) {
+                        areaOptions.push({ id: '__unassigned__', name: 'Unassigned (no area)' });
+                    }
+                    return areaOptions;
+
+                case 'domains':
+                    // Only show domains that exist in selected areas
+                    const selectedAreas = this.wizardSelections.areas;
+                    const relevantEntities = this.allEntities.filter(e => {
+                        if (selectedAreas.length === 0) return true;
+                        if (selectedAreas.includes('__unassigned__') && !e.area_id) return true;
+                        return selectedAreas.includes(e.area_id);
+                    });
+                    const domains = [...new Set(relevantEntities.map(e => e.domain))].sort();
+                    return domains.map(d => ({ id: d, name: this.formatDomainName(d) }));
+
+                case 'entities':
+                    // Filter by selected areas and domains
                     return this.allEntities
                         .filter(e => {
-                            if (this.wizardSelections.areas.length > 0 && !this.wizardSelections.areas.includes(e.area_id)) {
-                                return false;
+                            // Area filter
+                            if (this.wizardSelections.areas.length > 0) {
+                                if (this.wizardSelections.areas.includes('__unassigned__') && !e.area_id) {
+                                    // Allow unassigned
+                                } else if (!this.wizardSelections.areas.includes(e.area_id)) {
+                                    return false;
+                                }
                             }
-                            if (this.wizardSelections.domains.length > 0 && !this.wizardSelections.domains.includes(e.domain)) {
+                            // Domain filter
+                            if (this.wizardSelections.domains.length > 0 &&
+                                !this.wizardSelections.domains.includes(e.domain)) {
                                 return false;
                             }
                             return true;
                         })
-                        .map(e => ({ id: e.entity_id, name: e.friendly_name || e.entity_id }));
+                        .map(e => ({
+                            id: e.entity_id,
+                            name: e.friendly_name || e.entity_id,
+                            subtitle: e.entity_id
+                        }));
+
+                case 'grouping':
+                    return currentStep.options;
+
+                case 'confirm':
+                    return [];
+
                 default:
                     return [];
             }
         },
 
+        formatDomainName(domain) {
+            const names = {
+                light: 'Lights',
+                switch: 'Switches',
+                climate: 'Climate/HVAC',
+                media_player: 'Media Players',
+                sensor: 'Sensors',
+                binary_sensor: 'Binary Sensors',
+                cover: 'Covers/Blinds',
+                fan: 'Fans',
+                lock: 'Locks',
+                vacuum: 'Vacuums',
+                camera: 'Cameras',
+                automation: 'Automations',
+                script: 'Scripts',
+                scene: 'Scenes',
+                input_boolean: 'Input Booleans',
+                input_number: 'Input Numbers',
+                input_select: 'Input Selects'
+            };
+            return names[domain] || domain.charAt(0).toUpperCase() + domain.slice(1).replace(/_/g, ' ');
+        },
+
         isWizardOptionSelected(optionId) {
-            switch (this.wizardStep) {
-                case 0:
+            const currentStep = this.wizardSteps[this.wizardStep];
+
+            switch (currentStep.id) {
+                case 'areas':
                     return this.wizardSelections.areas.includes(optionId);
-                case 1:
+                case 'domains':
                     return this.wizardSelections.domains.includes(optionId);
-                case 2:
+                case 'entities':
                     return this.wizardSelections.entities.includes(optionId);
+                case 'grouping':
+                    return this.wizardSelections.grouping === optionId;
                 default:
                     return false;
             }
         },
 
         toggleWizardOption(optionId) {
+            const currentStep = this.wizardSteps[this.wizardStep];
+
+            if (currentStep.id === 'grouping') {
+                // Single selection for grouping
+                this.wizardSelections.grouping = optionId;
+                return;
+            }
+
             let arr;
-            switch (this.wizardStep) {
-                case 0:
+            switch (currentStep.id) {
+                case 'areas':
                     arr = this.wizardSelections.areas;
                     break;
-                case 1:
+                case 'domains':
                     arr = this.wizardSelections.domains;
                     break;
-                case 2:
+                case 'entities':
                     arr = this.wizardSelections.entities;
                     break;
                 default:
@@ -695,16 +810,118 @@ function layoutEditor() {
             }
         },
 
-        wizardNext() {
+        async wizardNext() {
+            const currentStep = this.wizardSteps[this.wizardStep];
+
             if (this.wizardStep === this.wizardSteps.length - 1) {
-                // Finish wizard
+                // Final step - save labels and finish
+                await this.saveWizardLabels();
                 this.selectedEntities = [...this.wizardSelections.entities];
                 this.showWizard = false;
+                this.wizardComplete = true;
                 this.mode = 'freeform';
                 this.autoGroup();
+
+                // Offer to generate profile
+                if (this.selectedEntities.length > 0) {
+                    this.showProfileNameModal = true;
+                }
             } else {
+                // Auto-select all entities when moving to entities step if none selected
+                if (currentStep.id === 'domains' && this.wizardSelections.entities.length === 0) {
+                    // Pre-select commonly used domains if none selected
+                    if (this.wizardSelections.domains.length === 0) {
+                        const commonDomains = ['light', 'switch', 'climate', 'media_player', 'cover', 'fan', 'scene'];
+                        this.wizardSelections.domains = commonDomains.filter(d =>
+                            this.allEntities.some(e => e.domain === d)
+                        );
+                    }
+                }
+
                 this.wizardStep++;
             }
+        },
+
+        async saveWizardLabels() {
+            const grouping = this.wizardSelections.grouping;
+            const entities = this.wizardSelections.entities;
+
+            // Build label assignments based on grouping choice
+            const labelAssignments = [];
+
+            for (const entityId of entities) {
+                const entity = this.getEntityById(entityId);
+                if (!entity) continue;
+
+                let hierarchy;
+
+                switch (grouping) {
+                    case 'by-area':
+                        const areaName = this.getAreaName(entity.area_id) || 'unassigned';
+                        hierarchy = [this.slugify(areaName)];
+                        break;
+
+                    case 'by-domain':
+                        hierarchy = [entity.domain];
+                        break;
+
+                    case 'flat':
+                    default:
+                        hierarchy = ['main'];
+                        break;
+                }
+
+                const labelString = this.buildLabelString(hierarchy);
+                labelAssignments.push({
+                    entityId: entityId,
+                    label: labelString
+                });
+            }
+
+            // Create unique labels first
+            const uniqueLabels = [...new Set(labelAssignments.map(a => a.label))];
+            for (const labelName of uniqueLabels) {
+                this.createLabel(labelName);
+            }
+
+            // Wait a moment for labels to be created, then assign
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Assign labels to entities
+            // Store the intended assignments for processing after labels are created
+            this.pendingLabelAssignments = labelAssignments;
+
+            // Trigger assignment after a delay
+            setTimeout(() => {
+                this.processPendingLabelAssignments();
+            }, 1000);
+        },
+
+        processPendingLabelAssignments() {
+            if (!this.pendingLabelAssignments) return;
+
+            for (const assignment of this.pendingLabelAssignments) {
+                // Find the label ID by name
+                const label = this.haLabels.find(l => l.name === assignment.label);
+                if (label) {
+                    this.assignLabelsToEntity(assignment.entityId, [label.label_id]);
+                }
+            }
+
+            this.pendingLabelAssignments = null;
+        },
+
+        getAreaName(areaId) {
+            if (!areaId) return null;
+            const area = this.areas.find(a => a.area_id === areaId);
+            return area ? area.name : null;
+        },
+
+        slugify(text) {
+            return text
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '');
         },
 
         // ========== Profile Generation ==========
