@@ -298,21 +298,21 @@ function styleEditor() {
         // Theming
         domainColors: { ...DOMAIN_COLORS },
         theme: {
-            backgroundColor: '#1C1C1C',
+            background: '#1a1a2e',
             backButtonPosition: 'bottom-right', // Legacy, keep for compatibility
             navStartPosition: 'bottom-right',   // NEW: Linear nav ←/→ position
             folderUpPosition: 'bottom-right',   // NEW: Folder up button position
         },
 
         // Style Editor State
-        groupStyles: {}, // { groupName: { backgroundColor, onOffColor, informationColor, triggerColor } }
+        groupStyles: {}, // { groupName: { background, onOff, information, trigger } }
         ungroupedStyle: {
-            backgroundColor: '#1C1C1C',
-            onOffColor: '#4CAF50',
-            informationColor: '#2196F3',
-            triggerColor: '#FF9800'
+            background: '#1a1a2e',
+            onOff: '#4CAF50',
+            information: '#2196F3',
+            trigger: '#FF9800'
         },
-        currentPreset: 'dark',
+        currentPreset: 'modern',
         previewPage: 'main', // 'main' or group name (legacy, kept for compatibility)
         ungroupedExpanded: false,
         labelSyncStatus: null, // null, 'syncing', 'synced', 'error'
@@ -324,29 +324,33 @@ function styleEditor() {
 
         // Theme Presets
         themePresets: {
-            dark: {
-                name: 'Stream Deck Dark',
-                backgroundColor: '#1C1C1C',
-                onOffColor: '#4CAF50',
-                informationColor: '#2196F3',
-                triggerColor: '#FF9800',
-                folderColor: '#333333'
+            modern: {
+                name: 'Modern',
+                background: '#1a1a2e',
+                onOff: '#4CAF50',
+                information: '#2196F3',
+                trigger: '#FF9800'
             },
-            blue: {
-                name: 'Home Assistant Blue',
-                backgroundColor: '#03A9F4',
-                onOffColor: '#FFFFFF',
-                informationColor: '#E3F2FD',
-                triggerColor: '#FFEB3B',
-                folderColor: '#0288D1'
+            classic: {
+                name: 'Classic',
+                background: '#2d2d2d',
+                onOff: '#66BB6A',
+                information: '#42A5F5',
+                trigger: '#FFA726'
             },
             minimal: {
-                name: 'Minimal White',
-                backgroundColor: '#FFFFFF',
-                onOffColor: '#4CAF50',
-                informationColor: '#2196F3',
-                triggerColor: '#FF9800',
-                folderColor: '#F5F5F5'
+                name: 'Minimal',
+                background: '#000000',
+                onOff: '#FFFFFF',
+                information: '#CCCCCC',
+                trigger: '#999999'
+            },
+            vibrant: {
+                name: 'Vibrant',
+                background: '#1a1a2e',
+                onOff: '#00E676',
+                information: '#00B0FF',
+                trigger: '#FF6D00'
             }
         },
 
@@ -812,13 +816,13 @@ function styleEditor() {
 
             switch (category) {
                 case 'controllable':
-                    return groupStyle.onOffColor || DEFAULT_CATEGORY_COLORS.onOff;
+                    return groupStyle.onOff || DEFAULT_CATEGORY_COLORS.onOff;
                 case 'informational':
-                    return groupStyle.informationColor || DEFAULT_CATEGORY_COLORS.information;
+                    return groupStyle.information || DEFAULT_CATEGORY_COLORS.information;
                 case 'trigger':
-                    return groupStyle.triggerColor || DEFAULT_CATEGORY_COLORS.trigger;
+                    return groupStyle.trigger || DEFAULT_CATEGORY_COLORS.trigger;
                 default:
-                    return groupStyle.onOffColor || DEFAULT_CATEGORY_COLORS.onOff;
+                    return groupStyle.onOff || DEFAULT_CATEGORY_COLORS.onOff;
             }
         },
 
@@ -2140,10 +2144,10 @@ function styleEditor() {
             // Initialize ungrouped style with current preset
             const preset = this.themePresets[this.currentPreset];
             this.ungroupedStyle = {
-                backgroundColor: preset.backgroundColor,
-                onOffColor: preset.onOffColor,
-                informationColor: preset.informationColor,
-                triggerColor: preset.triggerColor
+                background: preset.background,
+                onOff: preset.onOff,
+                information: preset.information,
+                trigger: preset.trigger
             };
 
             // Close wizard and show Style Editor
@@ -2165,10 +2169,10 @@ function styleEditor() {
                     if (!this.groupStyles[group.name]) {
                         const preset = this.themePresets[this.currentPreset];
                         this.groupStyles[group.name] = {
-                            backgroundColor: preset.backgroundColor,
-                            onOffColor: preset.onOffColor,
-                            informationColor: preset.informationColor,
-                            triggerColor: preset.triggerColor
+                            background: preset.background,
+                            onOff: preset.onOff,
+                            information: preset.information,
+                            trigger: preset.trigger
                         };
                     }
                 }
@@ -3052,16 +3056,14 @@ function styleEditor() {
          * Get style for a group, creating default if not exists
          */
         getGroupStyle(groupName) {
-            if (!this.groupStyles[groupName]) {
-                const preset = this.themePresets[this.currentPreset];
-                this.groupStyles[groupName] = {
-                    backgroundColor: preset.backgroundColor,
-                    onOffColor: preset.onOffColor,
-                    informationColor: preset.informationColor,
-                    triggerColor: preset.triggerColor
-                };
-            }
-            return this.groupStyles[groupName];
+            const style = this.groupStyles[groupName];
+            if (style) return style;
+            return {
+                background: '#1a1a2e',
+                onOff: '#4CAF50',
+                information: '#2196F3',
+                trigger: '#FF9800'
+            };
         },
 
         /**
@@ -3188,7 +3190,7 @@ function styleEditor() {
                     if (cell) {
                         buttons.push({
                             ...cell,
-                            backgroundColor: cell.style?.backgroundColor || this.theme.backgroundColor,
+                            backgroundColor: cell.style?.background || this.ungroupedStyle.background,
                             iconColor: cell.style?.iconColor || '#FFFFFF',
                             textColor: cell.style?.textColor || '#FFFFFF'
                         });
@@ -3247,9 +3249,9 @@ function styleEditor() {
                             label: group.name,
                             icon: 'mdi:folder',
                             groupName: group.name,
-                            backgroundColor: style.backgroundColor,
-                            iconColor: style.iconColor,
-                            textColor: style.textColor
+                            backgroundColor: style.background,
+                            iconColor: '#FFFFFF',
+                            textColor: '#FFFFFF'
                         });
                     } else if (group.displayType === 'flat') {
                         // Flat groups show entities on main page
@@ -3262,9 +3264,9 @@ function styleEditor() {
                                     label: this.getEntityLabel(entity),
                                     icon: this.getEntityIconName(entity),
                                     entityId: entityId,
-                                    backgroundColor: style.backgroundColor,
-                                    iconColor: this.domainColors[entity.domain] || style.iconColor,
-                                    textColor: style.textColor
+                                    backgroundColor: style.background,
+                                    iconColor: this.getEntityCategoryColor(entity, style),
+                                    textColor: '#FFFFFF'
                                 });
                             }
                         }
@@ -3281,9 +3283,9 @@ function styleEditor() {
                             label: this.getEntityLabel(entity),
                             icon: this.getEntityIconName(entity),
                             entityId: entityId,
-                            backgroundColor: this.ungroupedStyle.backgroundColor,
-                            iconColor: this.domainColors[entity.domain] || this.ungroupedStyle.iconColor,
-                            textColor: this.ungroupedStyle.textColor
+                            backgroundColor: this.ungroupedStyle.background,
+                            iconColor: this.getEntityCategoryColor(entity, this.ungroupedStyle),
+                            textColor: '#FFFFFF'
                         });
                     }
                 }
@@ -3300,9 +3302,9 @@ function styleEditor() {
                                 label: this.getEntityLabel(entity),
                                 icon: this.getEntityIconName(entity),
                                 entityId: entityId,
-                                backgroundColor: style.backgroundColor,
-                                iconColor: this.domainColors[entity.domain] || style.iconColor,
-                                textColor: style.textColor
+                                backgroundColor: style.background,
+                                iconColor: this.getEntityCategoryColor(entity, style),
+                                textColor: '#FFFFFF'
                             });
                         }
                     }
@@ -3314,9 +3316,9 @@ function styleEditor() {
                     type: 'back',
                     label: 'Back',
                     icon: 'mdi:arrow-left',
-                    backgroundColor: preset.folderColor,
-                    iconColor: preset.iconColor,
-                    textColor: preset.textColor
+                    backgroundColor: preset.background,
+                    iconColor: '#FFFFFF',
+                    textColor: '#FFFFFF'
                 });
             }
 
@@ -3376,37 +3378,27 @@ function styleEditor() {
         },
 
         /**
-         * Apply a theme preset to all groups
+         * Apply a theme preset to a specific group
          */
-        applyPreset(presetId) {
-            const preset = this.themePresets[presetId];
+        applyPreset(presetName, groupName) {
+            const preset = this.themePresets[presetName];
             if (!preset) return;
 
-            this.currentPreset = presetId;
-
-            // Apply to all group styles
-            for (const group of this.wizardSelections.groups || []) {
-                this.groupStyles[group.name] = {
-                    backgroundColor: preset.backgroundColor,
-                    onOffColor: preset.onOffColor,
-                    informationColor: preset.informationColor,
-                    triggerColor: preset.triggerColor
+            if (groupName === 'ungrouped') {
+                this.ungroupedStyle = {
+                    background: preset.background,
+                    onOff: preset.onOff,
+                    information: preset.information,
+                    trigger: preset.trigger
+                };
+            } else {
+                this.groupStyles[groupName] = {
+                    background: preset.background,
+                    onOff: preset.onOff,
+                    information: preset.information,
+                    trigger: preset.trigger
                 };
             }
-
-            // Apply to ungrouped style
-            this.ungroupedStyle = {
-                backgroundColor: preset.backgroundColor,
-                onOffColor: preset.onOffColor,
-                informationColor: preset.informationColor,
-                triggerColor: preset.triggerColor
-            };
-
-            // Update global theme background
-            this.theme.backgroundColor = preset.backgroundColor;
-
-            // Refresh preview
-            this.refreshPreviewPages();
         }
     };
 }
