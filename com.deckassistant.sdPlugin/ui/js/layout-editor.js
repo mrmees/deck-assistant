@@ -289,7 +289,8 @@ function styleEditor() {
             background: '#1a1a2e',
             onOff: '#4CAF50',
             information: '#2196F3',
-            trigger: '#FF9800'
+            trigger: '#FF9800',
+            labelStyle: 'name'  // 'none' | 'name' | 'state' | 'name-and-state'
         },
         currentPreset: 'modern',
         previewPage: 'main', // 'main' or group name (legacy, kept for compatibility)
@@ -308,28 +309,32 @@ function styleEditor() {
                 background: '#1a1a2e',
                 onOff: '#4CAF50',
                 information: '#2196F3',
-                trigger: '#FF9800'
+                trigger: '#FF9800',
+                labelStyle: 'name'
             },
             classic: {
                 name: 'Classic',
                 background: '#2d2d2d',
                 onOff: '#66BB6A',
                 information: '#42A5F5',
-                trigger: '#FFA726'
+                trigger: '#FFA726',
+                labelStyle: 'name'
             },
             minimal: {
                 name: 'Minimal',
                 background: '#000000',
                 onOff: '#FFFFFF',
                 information: '#CCCCCC',
-                trigger: '#999999'
+                trigger: '#999999',
+                labelStyle: 'none'
             },
             vibrant: {
                 name: 'Vibrant',
                 background: '#1a1a2e',
                 onOff: '#00E676',
                 information: '#00B0FF',
-                trigger: '#FF6D00'
+                trigger: '#FF6D00',
+                labelStyle: 'name'
             }
         },
 
@@ -3181,7 +3186,8 @@ function styleEditor() {
                 background: '#1a1a2e',
                 onOff: '#4CAF50',
                 information: '#2196F3',
-                trigger: '#FF9800'
+                trigger: '#FF9800',
+                labelStyle: 'name'
             };
         },
 
@@ -3549,7 +3555,8 @@ function styleEditor() {
                     background: preset.background,
                     onOff: preset.onOff,
                     information: preset.information,
-                    trigger: preset.trigger
+                    trigger: preset.trigger,
+                    labelStyle: preset.labelStyle || 'name'
                 };
             } else if (groupName) {
                 // Apply to specific group
@@ -3558,7 +3565,8 @@ function styleEditor() {
                     background: preset.background,
                     onOff: preset.onOff,
                     information: preset.information,
-                    trigger: preset.trigger
+                    trigger: preset.trigger,
+                    labelStyle: preset.labelStyle || 'name'
                 };
             } else {
                 // Apply to ALL groups and ungrouped (global apply)
@@ -3570,7 +3578,8 @@ function styleEditor() {
                         background: preset.background,
                         onOff: preset.onOff,
                         information: preset.information,
-                        trigger: preset.trigger
+                        trigger: preset.trigger,
+                        labelStyle: preset.labelStyle || 'name'
                     };
                 }
 
@@ -3579,7 +3588,8 @@ function styleEditor() {
                     background: preset.background,
                     onOff: preset.onOff,
                     information: preset.information,
-                    trigger: preset.trigger
+                    trigger: preset.trigger,
+                    labelStyle: preset.labelStyle || 'name'
                 };
 
                 this.theme.backgroundColor = preset.background;
