@@ -2,15 +2,15 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Deck Assistant - Layout Editor</title>
+    <title>Deck Assistant - Style Editor</title>
     <script defer src="js/alpine.min.js"></script>
     <link rel="stylesheet" href="css/layout-editor.css">
 </head>
 <body>
-    <div x-data="layoutEditor()" x-init="init()">
+    <div x-data="styleEditor()" x-init="init()">
         <!-- Header -->
         <header class="header">
-            <h1>Deck Assistant - Layout Editor</h1>
+            <h1>Deck Assistant - Style Editor</h1>
             <div class="device-info">
                 <button class="btn btn-secondary btn-small"
                         @click="startWizard()"
@@ -39,226 +39,252 @@
             </div>
         </template>
 
-        <!-- Main Content -->
-        <template x-if="!loading && connected">
-            <div class="main-content">
-                <!-- Left Panel - Entity Selection -->
-                <div class="left-panel">
+        <!-- Style Editor (shown after wizard completes) -->
+        <template x-if="!loading && connected && wizardComplete">
+            <div class="style-editor">
+                <!-- Left Panel - Group Styling -->
+                <div class="style-panel-left">
                     <div class="panel-header">
-                        <span>Entity Selection</span>
+                        <span>Group Styles</span>
                     </div>
 
-                    <!-- Mode Selector -->
-                    <div class="mode-selector">
-                        <button class="mode-btn" :class="{ active: mode === 'freeform' }" @click="mode = 'freeform'">
-                            Free-form
-                        </button>
-                        <button class="mode-btn" :class="{ active: mode === 'wizard' }" @click="startWizard()">
-                            Guide Me
-                        </button>
-                    </div>
-
-                    <!-- Filters -->
-                    <div class="filters">
-                        <input type="text"
-                               class="filter-input"
-                               placeholder="Search entities..."
-                               x-model="searchFilter"
-                               @input="filterEntities()">
-                        <div class="filter-row">
-                            <select class="filter-select" x-model="domainFilter" @change="filterEntities()">
-                                <option value="">All Domains</option>
-                                <template x-for="domain in uniqueDomains" :key="domain">
-                                    <option :value="domain" x-text="domain"></option>
-                                </template>
-                            </select>
-                            <select class="filter-select" x-model="areaFilter" @change="filterEntities()">
-                                <option value="">All Areas</option>
-                                <template x-for="area in areas" :key="area.area_id">
-                                    <option :value="area.area_id" x-text="area.name"></option>
-                                </template>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Entity List -->
-                    <div class="entity-list">
-                        <template x-if="filteredEntities.length === 0">
-                            <div class="empty-state">
-                                <div class="empty-state-title">No entities found</div>
-                                <div class="empty-state-text">Try adjusting your filters</div>
-                            </div>
-                        </template>
-                        <template x-for="entity in filteredEntities" :key="entity.entity_id">
-                            <div class="entity-item"
-                                 :class="{ selected: isSelected(entity.entity_id) }"
-                                 @click="toggleSelection(entity.entity_id)"
-                                 draggable="true"
-                                 @dragstart="handleDragStart($event, entity)">
-                                <input type="checkbox"
-                                       :checked="isSelected(entity.entity_id)"
-                                       @click.stop="toggleSelection(entity.entity_id)">
-                                <div class="entity-info">
-                                    <div class="entity-name" x-text="entity.friendly_name || entity.entity_id"></div>
-                                    <div class="entity-id" x-text="entity.entity_id"></div>
+                    <div class="style-groups-list">
+                        <!-- Groups -->
+                        <template x-for="(group, index) in wizardSelections.groups" :key="group.name">
+                            <div class="style-group-item">
+                                <div class="style-group-header" @click="toggleGroupExpanded(index)">
+                                    <span class="style-group-expand" x-text="group.expanded ? '▼' : '▶'"></span>
+                                    <span class="style-group-name" x-text="group.name"></span>
+                                    <span class="style-group-count" x-text="group.entities.length"></span>
+                                    <span class="style-group-type" x-text="group.displayType"></span>
                                 </div>
-                                <span class="entity-domain" x-text="entity.domain"></span>
+
+                                <template x-if="group.expanded">
+                                    <div class="style-group-content">
+                                        <!-- Style Controls -->
+                                        <div class="style-controls">
+                                            <div class="style-control-row">
+                                                <label>Background</label>
+                                                <input type="color"
+                                                       :value="getGroupStyle(group.name).backgroundColor"
+                                                       @input="setGroupStyleProp(group.name, 'backgroundColor', $event.target.value)">
+                                            </div>
+                                            <div class="style-control-row">
+                                                <label>Icon Color</label>
+                                                <input type="color"
+                                                       :value="getGroupStyle(group.name).iconColor"
+                                                       @input="setGroupStyleProp(group.name, 'iconColor', $event.target.value)">
+                                            </div>
+                                            <div class="style-control-row">
+                                                <label>Text Color</label>
+                                                <input type="color"
+                                                       :value="getGroupStyle(group.name).textColor"
+                                                       @input="setGroupStyleProp(group.name, 'textColor', $event.target.value)">
+                                            </div>
+                                        </div>
+
+                                        <!-- Entity List Preview -->
+                                        <div class="style-group-entities">
+                                            <template x-for="entityId in group.entities.slice(0, 5)" :key="entityId">
+                                                <div class="style-entity-item" x-text="getEntityName(entityId)"></div>
+                                            </template>
+                                            <template x-if="group.entities.length > 5">
+                                                <div class="style-entity-more" x-text="'+ ' + (group.entities.length - 5) + ' more'"></div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
                         </template>
-                    </div>
 
-                    <!-- Selection Summary -->
-                    <div class="selection-summary">
-                        <span class="selection-count" x-text="`${selectedEntities.length} selected`"></span>
-                        <div class="selection-actions">
-                            <button class="btn btn-secondary" @click="selectAllVisible()" x-show="filteredEntities.length > 0">
-                                Select All
-                            </button>
-                            <button class="btn btn-secondary" @click="clearSelection()" x-show="selectedEntities.length > 0">
-                                Clear
-                            </button>
-                        </div>
+                        <!-- Ungrouped Entities -->
+                        <template x-if="wizardSelections.ungroupedEntities.length > 0">
+                            <div class="style-group-item">
+                                <div class="style-group-header" @click="ungroupedExpanded = !ungroupedExpanded">
+                                    <span class="style-group-expand" x-text="ungroupedExpanded ? '▼' : '▶'"></span>
+                                    <span class="style-group-name">Ungrouped</span>
+                                    <span class="style-group-count" x-text="wizardSelections.ungroupedEntities.length"></span>
+                                    <span class="style-group-type">main</span>
+                                </div>
+
+                                <template x-if="ungroupedExpanded">
+                                    <div class="style-group-content">
+                                        <div class="style-controls">
+                                            <div class="style-control-row">
+                                                <label>Background</label>
+                                                <input type="color"
+                                                       :value="ungroupedStyle.backgroundColor"
+                                                       @input="ungroupedStyle.backgroundColor = $event.target.value">
+                                            </div>
+                                            <div class="style-control-row">
+                                                <label>Icon Color</label>
+                                                <input type="color"
+                                                       :value="ungroupedStyle.iconColor"
+                                                       @input="ungroupedStyle.iconColor = $event.target.value">
+                                            </div>
+                                            <div class="style-control-row">
+                                                <label>Text Color</label>
+                                                <input type="color"
+                                                       :value="ungroupedStyle.textColor"
+                                                       @input="ungroupedStyle.textColor = $event.target.value">
+                                            </div>
+                                        </div>
+
+                                        <div class="style-group-entities">
+                                            <template x-for="entityId in wizardSelections.ungroupedEntities.slice(0, 5)" :key="entityId">
+                                                <div class="style-entity-item" x-text="getEntityName(entityId)"></div>
+                                            </template>
+                                            <template x-if="wizardSelections.ungroupedEntities.length > 5">
+                                                <div class="style-entity-more" x-text="'+ ' + (wizardSelections.ungroupedEntities.length - 5) + ' more'"></div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
                     </div>
                 </div>
 
-                <!-- Center Panel - Grid Preview -->
-                <div class="center-panel">
-                    <div class="grid-container">
-                        <div class="grid-preview" :style="gridStyle">
-                            <template x-for="row in deviceSize.rows" :key="'row-' + row">
-                                <template x-for="col in deviceSize.cols" :key="'cell-' + col + '-' + row">
-                                    <div class="grid-cell"
-                                         :class="{
-                                             'has-entity': getEntityAt(currentPage, col - 1, row - 1),
-                                             'drop-target': dropTarget?.col === col - 1 && dropTarget?.row === row - 1
-                                         }"
-                                         @drop="handleDrop($event, col - 1, row - 1)"
-                                         @dragover.prevent="handleDragOver($event, col - 1, row - 1)"
-                                         @dragleave="handleDragLeave()"
-                                         @click="handleCellClick(col - 1, row - 1)">
-                                        <template x-if="getEntityAt(currentPage, col - 1, row - 1)">
-                                            <div class="entity-preview" :style="getEntityStyle(getEntityAt(currentPage, col - 1, row - 1))">
-                                                <div class="entity-icon" x-text="getEntityIcon(getEntityAt(currentPage, col - 1, row - 1))"></div>
-                                                <div class="entity-label" x-text="getEntityLabel(getEntityAt(currentPage, col - 1, row - 1))"></div>
-                                            </div>
-                                        </template>
+                <!-- Center Panel - Stream Deck Preview -->
+                <div class="style-panel-center">
+                    <div class="preview-header">
+                        <span class="preview-title" x-text="previewPage === 'main' ? 'Main Page' : previewPage"></span>
+                        <button class="btn btn-secondary btn-small"
+                                x-show="previewPage !== 'main'"
+                                @click="previewPage = 'main'">
+                            ← Back
+                        </button>
+                    </div>
+
+                    <div class="preview-container">
+                        <div class="preview-grid" :style="previewGridStyle">
+                            <template x-for="(button, index) in getPreviewButtons()" :key="index">
+                                <div class="preview-button"
+                                     :style="getPreviewButtonStyle(button)"
+                                     @click="handlePreviewButtonClick(button)">
+                                    <div class="preview-button-icon">
+                                        <!-- SVG icon when loaded -->
+                                        <svg x-show="button.icon && getIconPath(button.icon)"
+                                             viewBox="0 0 24 24"
+                                             class="mdi-icon">
+                                            <path :d="getIconPath(button.icon)" :fill="button.iconColor"/>
+                                        </svg>
+                                        <!-- Loading indicator -->
+                                        <span x-show="button.icon && !getIconPath(button.icon) && isIconLoading(button.icon)"
+                                              class="icon-loading">...</span>
+                                        <!-- Empty placeholder for empty buttons -->
+                                        <span x-show="!button.icon"></span>
                                     </div>
-                                </template>
+                                    <div class="preview-button-label" :style="{ color: button.textColor }" x-text="button.label"></div>
+                                </div>
                             </template>
                         </div>
                     </div>
 
-                    <!-- Page Tabs -->
-                    <div class="page-tabs">
-                        <template x-for="(page, index) in pages" :key="page.id">
-                            <button class="page-tab"
-                                    :class="{ active: currentPage === index }"
-                                    @click="currentPage = index"
-                                    x-text="page.name || `Page ${index + 1}`">
-                            </button>
-                        </template>
-                        <button class="page-tab add-page" @click="addPage()">+ Add Page</button>
+                    <div class="preview-info">
+                        <span x-text="deviceSize.cols + ' x ' + deviceSize.rows + ' grid'"></span>
+                        <span x-text="'Click folders to preview sub-pages'"></span>
                     </div>
                 </div>
 
-                <!-- Right Panel - Groups & Theming -->
-                <div class="right-panel">
-                    <div class="right-tabs">
-                        <button class="right-tab" :class="{ active: rightTab === 'groups' }" @click="rightTab = 'groups'">
-                            Groups
-                        </button>
-                        <button class="right-tab" :class="{ active: rightTab === 'theming' }" @click="rightTab = 'theming'">
-                            Theming
-                        </button>
+                <!-- Right Panel - Theme & Presets -->
+                <div class="style-panel-right">
+                    <div class="panel-header">
+                        <span>Theme</span>
                     </div>
 
-                    <div class="right-content">
-                        <!-- Groups Tab -->
-                        <template x-if="rightTab === 'groups'">
-                            <div>
-                                <template x-if="groups.length === 0">
-                                    <div class="empty-state">
-                                        <div class="empty-state-title">No groups yet</div>
-                                        <div class="empty-state-text">Select entities and click "Auto-Group" to organize them</div>
-                                    </div>
-                                </template>
-                                <div class="group-list">
-                                    <template x-for="group in groups" :key="group.id">
-                                        <div class="group-item">
-                                            <div class="group-header" @click="group.expanded = !group.expanded">
-                                                <span class="group-name" x-text="group.name"></span>
-                                                <span class="group-count" x-text="group.entities.length"></span>
-                                                <select class="filter-select"
-                                                        style="width: auto; font-size: 10px;"
-                                                        x-model="group.type"
-                                                        @click.stop>
-                                                    <option value="folder">Folder</option>
-                                                    <option value="page">Page</option>
-                                                </select>
-                                            </div>
-                                            <template x-if="group.expanded">
-                                                <div class="group-entities">
-                                                    <template x-for="entityId in group.entities" :key="entityId">
-                                                        <div class="group-entity" x-text="getEntityName(entityId)"></div>
-                                                    </template>
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </template>
-                                </div>
-                                <template x-if="selectedEntities.length > 0 && groups.length === 0">
-                                    <button class="btn btn-primary" style="width: 100%; margin-top: 16px;" @click="autoGroup()">
-                                        Auto-Group Selected
-                                    </button>
-                                </template>
+                    <div class="theme-content">
+                        <!-- Presets -->
+                        <div class="theme-section">
+                            <div class="theme-section-title">Presets</div>
+                            <div class="theme-presets">
+                                <button class="theme-preset-btn"
+                                        :class="{ active: currentPreset === 'dark' }"
+                                        @click="applyPreset('dark')">
+                                    Stream Deck Dark
+                                </button>
+                                <button class="theme-preset-btn"
+                                        :class="{ active: currentPreset === 'blue' }"
+                                        @click="applyPreset('blue')">
+                                    Home Assistant Blue
+                                </button>
+                                <button class="theme-preset-btn"
+                                        :class="{ active: currentPreset === 'minimal' }"
+                                        @click="applyPreset('minimal')">
+                                    Minimal White
+                                </button>
                             </div>
-                        </template>
+                        </div>
 
-                        <!-- Theming Tab -->
-                        <template x-if="rightTab === 'theming'">
-                            <div>
-                                <div class="theme-section">
-                                    <div class="theme-section-title">Domain Colors</div>
-                                    <template x-for="(color, domain) in domainColors" :key="domain">
-                                        <div class="theme-row">
-                                            <span class="theme-label" x-text="domain"></span>
-                                            <input type="color" class="color-picker" x-model="domainColors[domain]">
-                                        </div>
-                                    </template>
-                                </div>
-                                <div class="theme-section">
-                                    <div class="theme-section-title">Background</div>
+                        <!-- Domain Colors -->
+                        <div class="theme-section">
+                            <div class="theme-section-title">Domain Colors</div>
+                            <div class="theme-domain-colors">
+                                <template x-for="(color, domain) in domainColors" :key="domain">
                                     <div class="theme-row">
-                                        <span class="theme-label">Button Background</span>
-                                        <input type="color" class="color-picker" x-model="theme.backgroundColor">
+                                        <span class="theme-label" x-text="formatDomainName(domain)"></span>
+                                        <input type="color" class="color-picker" x-model="domainColors[domain]">
                                     </div>
-                                </div>
-                                <div class="theme-section">
-                                    <div class="theme-section-title">Back Button</div>
-                                    <div class="theme-row">
-                                        <span class="theme-label">Position</span>
-                                        <select class="filter-select" x-model="theme.backButtonPosition" style="width: auto;">
-                                            <option value="bottom-right">Bottom Right</option>
-                                            <option value="bottom-left">Bottom Left</option>
-                                            <option value="top-right">Top Right</option>
-                                            <option value="top-left">Top Left</option>
-                                        </select>
-                                    </div>
-                                </div>
+                                </template>
                             </div>
-                        </template>
+                        </div>
+
+                        <!-- Global Settings -->
+                        <div class="theme-section">
+                            <div class="theme-section-title">Navigation</div>
+                            <div class="theme-row">
+                                <span class="theme-label">Back Button Position</span>
+                                <select class="filter-select" x-model="theme.backButtonPosition" style="width: auto;">
+                                    <option value="bottom-right">Bottom Right</option>
+                                    <option value="bottom-left">Bottom Left</option>
+                                    <option value="top-right">Top Right</option>
+                                    <option value="top-left">Top Left</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Home Assistant Labels -->
+                        <div class="theme-section" x-show="wizardSelections.groups && wizardSelections.groups.length > 0">
+                            <div class="theme-section-title">Home Assistant</div>
+                            <div class="ha-labels-section">
+                                <p class="ha-labels-description">
+                                    Add deck-assistant labels to entities in Home Assistant. Makes future configurations easier.
+                                </p>
+                                <button class="btn btn-secondary btn-block"
+                                        @click="addLabelsToHomeAssistant()"
+                                        :disabled="labelSyncStatus === 'syncing'">
+                                    <span x-show="!labelSyncStatus">Add Labels to HA</span>
+                                    <span x-show="labelSyncStatus === 'syncing'">Adding...</span>
+                                    <span x-show="labelSyncStatus === 'synced'">Done!</span>
+                                    <span x-show="labelSyncStatus === 'error'">Error</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </template>
 
+        <!-- Welcome State (before wizard runs) -->
+        <template x-if="!loading && connected && !wizardComplete && !showWizard">
+            <div class="welcome-state">
+                <div class="welcome-content">
+                    <h2>Welcome to Deck Assistant</h2>
+                    <p>Configure your Stream Deck with Home Assistant entities.</p>
+                    <button class="btn btn-primary btn-large" @click="startWizard()">
+                        Start Setup Wizard
+                    </button>
+                </div>
+            </div>
+        </template>
+
         <!-- Footer -->
-        <template x-if="!loading && connected">
+        <template x-if="!loading && connected && wizardComplete">
             <footer class="footer">
-                <button class="btn btn-secondary" @click="syncLabels()" :disabled="selectedEntities.length === 0">
-                    Sync Labels to HA
+                <button class="btn btn-secondary" @click="startWizard()">
+                    Reconfigure
                 </button>
-                <button class="btn btn-primary" @click="showProfileNameModal = true" :disabled="!hasAnyEntitiesPlaced()">
+                <button class="btn btn-primary" @click="showProfileNameModal = true">
                     Generate Profile
                 </button>
             </footer>
@@ -317,14 +343,36 @@
             <div class="wizard-overlay">
                 <div class="wizard">
                     <div class="wizard-step">
-                        <!-- Progress Dots -->
-                        <div class="wizard-progress">
-                            <template x-for="(step, index) in wizardSteps" :key="index">
-                                <div class="wizard-dot"
-                                     :class="{
-                                         active: wizardStep === index,
-                                         completed: wizardStep > index
-                                     }">
+                        <!-- Progress Indicator -->
+                        <div class="wizard-progress-container">
+                            <!-- Main Path Progress -->
+                            <div class="wizard-progress">
+                                <template x-for="(step, index) in getMainWizardPath()" :key="step.id">
+                                    <div class="wizard-progress-step"
+                                         :class="{
+                                             active: getMainWizardProgress() === index,
+                                             completed: getMainWizardProgress() > index,
+                                             'is-loop': step.isLoop
+                                         }">
+                                        <div class="wizard-dot"></div>
+                                        <span class="wizard-step-label" x-text="step.label"></span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Group Creation Sub-progress (shown during group loop) -->
+                            <template x-if="isInGroupCreationLoop()">
+                                <div class="wizard-subprogress">
+                                    <div class="subprogress-label">
+                                        <span class="loop-indicator">↻</span>
+                                        Creating Group <span x-text="getGroupCreationProgress()?.groupNumber"></span>
+                                        <span class="subprogress-steps">
+                                            (Step <span x-text="getGroupCreationProgress()?.current"></span>/<span x-text="getGroupCreationProgress()?.total"></span>)
+                                        </span>
+                                    </div>
+                                    <div class="subprogress-hint">
+                                        You'll return to group management after this
+                                    </div>
                                 </div>
                             </template>
                         </div>
@@ -362,17 +410,49 @@
                             </div>
                         </template>
 
-                        <!-- Choice Steps (approach, group-type, group-complete, layout) -->
+                        <!-- Choice Steps (approach, group-type, layout, etc.) -->
                         <template x-if="wizardSteps[wizardStep].type === 'choice' && wizardSteps[wizardStep].id !== 'group-complete'">
-                            <div class="wizard-options wizard-scrollable">
-                                <template x-for="option in getWizardOptions()" :key="option.id">
-                                    <div class="wizard-option wizard-option-large"
-                                         :class="{ selected: isWizardOptionSelected(option.id) }"
-                                         @click="toggleWizardOption(option.id)">
-                                        <input type="radio" :checked="isWizardOptionSelected(option.id)">
-                                        <div class="wizard-option-content">
-                                            <span class="wizard-option-name" x-text="option.name"></span>
-                                            <span class="wizard-option-description" x-text="option.description"></span>
+                            <div class="wizard-choice-select">
+                                <!-- Search box for steps with many options -->
+                                <template x-if="getWizardOptions().length > 4">
+                                    <div class="wizard-filters">
+                                        <div class="wizard-search">
+                                            <input type="text"
+                                                   class="wizard-search-input"
+                                                   placeholder="Search options..."
+                                                   x-model="wizardEntitySearch">
+                                            <span class="wizard-search-icon">🔍</span>
+                                        </div>
+                                    </div>
+                                </template>
+                                <div class="wizard-options wizard-scrollable">
+                                    <template x-for="option in filterWizardOptions(getWizardOptions())" :key="option.id">
+                                        <div class="wizard-option wizard-option-large"
+                                             :class="{ selected: isWizardOptionSelected(option.id) }"
+                                             @click="toggleWizardOption(option.id)">
+                                            <input type="radio" :checked="isWizardOptionSelected(option.id)">
+                                            <div class="wizard-option-content">
+                                                <span class="wizard-option-name" x-text="option.name"></span>
+                                                <span class="wizard-option-description" x-text="option.description"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <template x-if="filterWizardOptions(getWizardOptions()).length === 0">
+                                        <div class="wizard-no-results">
+                                            No options match your search
+                                        </div>
+                                    </template>
+                                </div>
+                                <!-- Stats for choice steps with search -->
+                                <template x-if="getWizardOptions().length > 4">
+                                    <div class="wizard-selection-stats">
+                                        <div class="wizard-stat">
+                                            <span class="wizard-stat-value" x-text="getWizardOptions().length"></span>
+                                            <span class="wizard-stat-label">Total</span>
+                                        </div>
+                                        <div class="wizard-stat">
+                                            <span class="wizard-stat-value" x-text="filterWizardOptions(getWizardOptions()).length"></span>
+                                            <span class="wizard-stat-label">Filtered</span>
                                         </div>
                                     </div>
                                 </template>
@@ -397,9 +477,62 @@
                                     <button class="btn btn-secondary btn-block" @click="handleGroupCompleteChoice('another')">
                                         + Add Another Group
                                     </button>
+                                    <button class="btn btn-secondary btn-block" @click="handleGroupCompleteChoice('ungrouped')">
+                                        + Add Ungrouped Entities
+                                    </button>
                                     <button class="btn btn-primary btn-block" @click="handleGroupCompleteChoice('done')">
                                         Done — Configure Layout
                                     </button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Group Layout Configuration Step -->
+                        <template x-if="wizardSteps[wizardStep].id === 'group-layout'">
+                            <div class="wizard-group-layout">
+                                <div class="wizard-group-config-header">
+                                    <div class="wizard-display-options-summary">
+                                        <span><strong>Folder</strong> — Button opens sub-page</span>
+                                        <span><strong>Page</strong> — Separate top-level page</span>
+                                        <span><strong>Flat</strong> — Entities on main page</span>
+                                    </div>
+                                    <p class="wizard-group-layout-intro">Drag to reorder priority</p>
+                                </div>
+
+                                <div class="wizard-group-config-list">
+                                    <template x-for="(group, index) in wizardSelections.groups" :key="group.name">
+                                        <div class="wizard-group-config-item"
+                                             draggable="true"
+                                             :class="{ 'drag-over': groupDragOverIndex === index }"
+                                             @dragstart="handleGroupDragStart($event, index)"
+                                             @dragend="handleGroupDragEnd()"
+                                             @dragover.prevent="handleGroupDragOver($event, index)"
+                                             @dragleave="handleGroupDragLeave()"
+                                             @drop="handleGroupDrop($event, index)">
+                                            <div class="wizard-group-drag-handle">⋮⋮</div>
+                                            <div class="wizard-group-config-info">
+                                                <span class="wizard-group-config-name" x-text="group.name"></span>
+                                                <span class="wizard-group-config-count" x-text="group.entities.length + ' entities'"></span>
+                                            </div>
+                                            <div class="wizard-group-config-options">
+                                                <button class="wizard-display-btn"
+                                                        :class="{ active: group.displayType === 'folder' }"
+                                                        @click="setGroupDisplayType(index, 'folder')">
+                                                    Folder
+                                                </button>
+                                                <button class="wizard-display-btn"
+                                                        :class="{ active: group.displayType === 'page' }"
+                                                        @click="setGroupDisplayType(index, 'page')">
+                                                    Page
+                                                </button>
+                                                <button class="wizard-display-btn"
+                                                        :class="{ active: group.displayType === 'flat' }"
+                                                        @click="setGroupDisplayType(index, 'flat')">
+                                                    Flat
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
                             </div>
                         </template>
@@ -416,10 +549,16 @@
                                                x-model="wizardEntitySearch">
                                         <span class="wizard-search-icon">🔍</span>
                                     </div>
-                                    <label class="wizard-linked-filter">
-                                        <input type="checkbox" x-model="wizardShowLinkedOnly">
-                                        <span>Show only Deck Assistant linked</span>
-                                    </label>
+                                    <div class="wizard-filter-row">
+                                        <label class="wizard-filter-checkbox" x-show="entitiesWithLabels.length > 0">
+                                            <input type="checkbox" x-model="wizardShowLinkedOnly">
+                                            <span>Deck Assistant labeled only</span>
+                                        </label>
+                                        <label class="wizard-filter-checkbox">
+                                            <input type="checkbox" x-model="wizardHideUnavailable">
+                                            <span>Hide disabled/unavailable</span>
+                                        </label>
+                                    </div>
                                 </div>
                                 <div class="wizard-options wizard-scrollable">
                                     <template x-for="option in getWizardOptions()" :key="option.id">
@@ -481,9 +620,19 @@
 
                         <!-- Selection count for multi-select steps -->
                         <template x-if="wizardSteps[wizardStep].type === 'multiselect'">
-                            <div class="wizard-selection-count">
-                                <span x-show="wizardSteps[wizardStep].id === 'group-entities'" x-text="`${wizardSelections.currentGroupEntities.length} entities selected`"></span>
-                                <span x-show="wizardSteps[wizardStep].id === 'simple-entities'" x-text="`${wizardSelections.simpleEntities.length} entities selected`"></span>
+                            <div class="wizard-selection-stats">
+                                <div class="wizard-stat">
+                                    <span class="wizard-stat-value" x-text="wizardSteps[wizardStep].id === 'group-entities' ? wizardSelections.currentGroupEntities.length : (wizardSteps[wizardStep].id === 'ungrouped-entities' ? wizardSelections.ungroupedEntities.length : wizardSelections.simpleEntities.length)"></span>
+                                    <span class="wizard-stat-label">Selected</span>
+                                </div>
+                                <div class="wizard-stat">
+                                    <span class="wizard-stat-value" x-text="getWizardTotalCount()"></span>
+                                    <span class="wizard-stat-label">Total</span>
+                                </div>
+                                <div class="wizard-stat">
+                                    <span class="wizard-stat-value" x-text="getWizardOptions().length"></span>
+                                    <span class="wizard-stat-label">Filtered</span>
+                                </div>
                             </div>
                         </template>
 
