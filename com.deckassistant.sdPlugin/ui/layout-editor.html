@@ -234,7 +234,16 @@
                                         <!-- Empty placeholder for empty buttons -->
                                         <span x-show="!button.icon"></span>
                                     </div>
-                                    <div class="preview-button-label" :style="{ color: button.textColor }" x-text="button.label"></div>
+                                    <div class="preview-button-labels">
+                                        <div class="preview-button-label"
+                                             :style="{ color: button.textColor }"
+                                             x-text="button.label"
+                                             x-show="button.label"></div>
+                                        <div class="preview-button-sublabel"
+                                             :style="{ color: button.textColor }"
+                                             x-text="button.subLabel"
+                                             x-show="button.subLabel"></div>
+                                    </div>
                                 </div>
                             </template>
                         </div>

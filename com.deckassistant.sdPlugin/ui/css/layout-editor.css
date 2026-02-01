@@ -1790,12 +1790,32 @@ body {
     text-align: center;
 }
 
+.preview-button-labels {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+}
+
 .preview-button-label {
-    font-size: 9px;
+    font-size: 8px;
+    line-height: 1.1;
     text-align: center;
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+    padding: 0 4px;
+}
+
+.preview-button-sublabel {
+    font-size: 7px;
+    line-height: 1.1;
+    text-align: center;
+    opacity: 0.8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     max-width: 100%;
     padding: 0 4px;
 }
