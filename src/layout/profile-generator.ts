@@ -48,7 +48,6 @@ interface ProfileConfig {
     };
     pages: PageData[];
     theme: ThemeConfig;
-    domainColors: Record<string, string>;
 }
 
 interface ProfileAction {
@@ -129,7 +128,7 @@ export async function generateProfile(config: ProfileConfig): Promise<{ data: st
                 const position = `${col},${row}`;
 
                 if (cell.type === 'entity' && cell.entity_id) {
-                    actions[position] = createEntityButtonAction(cell, config.domainColors, config.theme);
+                    actions[position] = createEntityButtonAction(cell, config.theme);
                 } else if (cell.type === 'folder') {
                     // Find target folder page
                     const targetPage = config.pages.find(p =>
@@ -261,11 +260,11 @@ function createNavigationAction(label: string, targetProfileUuid: string): Profi
  */
 function createEntityButtonAction(
     entity: EntityData,
-    domainColors: Record<string, string>,
     theme: ThemeConfig
 ): ProfileAction {
     const domain = entity.domain || 'unknown';
-    const iconColor = entity.style?.iconColor || domainColors[domain] || '#888888';
+    const iconColor = entity.style?.iconColor || '#FFFFFF';
+    const textColor = entity.style?.textColor || iconColor; // Text matches icon
     const backgroundColor = entity.style?.backgroundColor || theme.backgroundColor;
     const friendlyName = entity.friendly_name || entity.label || entity.entity_id || 'Entity';
 
@@ -277,6 +276,7 @@ function createEntityButtonAction(
             friendlyName: friendlyName,
             iconSource: "domain",
             iconColor: iconColor,
+            textColor: textColor,
             backgroundColor: backgroundColor,
             showTitle: true,
             showState: true
