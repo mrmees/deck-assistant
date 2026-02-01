@@ -1015,9 +1015,15 @@ body {
     gap: 12px;
 }
 
+.wizard-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 .wizard-search {
     position: relative;
-    flex-shrink: 0;
 }
 
 .wizard-search-input {
@@ -1053,4 +1059,24 @@ body {
     color: #666;
     padding: 24px;
     font-style: italic;
+}
+
+.wizard-linked-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #aaa;
+    padding: 4px 0;
+}
+
+.wizard-linked-filter:hover {
+    color: #fff;
+}
+
+.wizard-linked-filter input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
 }

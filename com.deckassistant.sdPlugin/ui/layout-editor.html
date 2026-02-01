@@ -404,13 +404,19 @@
                         <!-- Multi-select Steps (group-entities, simple-entities) -->
                         <template x-if="wizardSteps[wizardStep].type === 'multiselect'">
                             <div class="wizard-entity-select">
-                                <!-- Search box for entity steps -->
-                                <div class="wizard-search">
-                                    <input type="text"
-                                           class="wizard-search-input"
-                                           placeholder="Search by name, area, or device type..."
-                                           x-model="wizardEntitySearch">
-                                    <span class="wizard-search-icon">🔍</span>
+                                <!-- Search and filter for entity steps -->
+                                <div class="wizard-filters">
+                                    <div class="wizard-search">
+                                        <input type="text"
+                                               class="wizard-search-input"
+                                               placeholder="Search by name, area, or device type..."
+                                               x-model="wizardEntitySearch">
+                                        <span class="wizard-search-icon">🔍</span>
+                                    </div>
+                                    <label class="wizard-linked-filter">
+                                        <input type="checkbox" x-model="wizardShowLinkedOnly">
+                                        <span>Show only Deck Assistant linked</span>
+                                    </label>
                                 </div>
                                 <div class="wizard-options wizard-scrollable">
                                     <template x-for="option in getWizardOptions()" :key="option.id">

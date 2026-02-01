@@ -154,6 +154,7 @@ function layoutEditor() {
         showWizard: false,
         wizardStep: 0,
         wizardEntitySearch: '', // Search filter for entity lists
+        wizardShowLinkedOnly: false, // Filter to show only deck-assistant labeled entities
         wizardSelections: {
             approach: 'groups', // 'groups' or 'simple'
             groupType: 'area', // 'area', 'domain', 'custom'
@@ -757,8 +758,9 @@ function layoutEditor() {
             const index = this.getWizardStepIndex(stepId);
             if (index !== -1) {
                 this.wizardStep = index;
-                // Clear entity search when changing steps
+                // Clear entity search and filter when changing steps
                 this.wizardEntitySearch = '';
+                this.wizardShowLinkedOnly = false;
             }
         },
 
@@ -815,24 +817,35 @@ function layoutEditor() {
         },
 
         /**
-         * Filter entities by search term (searches name, ID, area, domain)
+         * Filter entities by search term and linked-only toggle
          */
         filterEntitiesBySearch(entities) {
-            const search = this.wizardEntitySearch.toLowerCase().trim();
-            if (!search) return entities;
+            let filtered = entities;
 
-            return entities.filter(e => {
-                // Search in entity ID
-                if (e.entity_id.toLowerCase().includes(search)) return true;
-                // Search in friendly name
-                if ((e.friendly_name || '').toLowerCase().includes(search)) return true;
-                // Search in domain (formatted)
-                if (this.formatDomainName(e.domain).toLowerCase().includes(search)) return true;
-                // Search in area name
-                const areaName = this.getAreaName(e.area_id) || '';
-                if (areaName.toLowerCase().includes(search)) return true;
-                return false;
-            });
+            // Filter to only deck-assistant linked entities if toggle is on
+            if (this.wizardShowLinkedOnly) {
+                const linkedEntityIds = this.entitiesWithLabels.map(e => e.entity_id);
+                filtered = filtered.filter(e => linkedEntityIds.includes(e.entity_id));
+            }
+
+            // Apply search filter
+            const search = this.wizardEntitySearch.toLowerCase().trim();
+            if (search) {
+                filtered = filtered.filter(e => {
+                    // Search in entity ID
+                    if (e.entity_id.toLowerCase().includes(search)) return true;
+                    // Search in friendly name
+                    if ((e.friendly_name || '').toLowerCase().includes(search)) return true;
+                    // Search in domain (formatted)
+                    if (this.formatDomainName(e.domain).toLowerCase().includes(search)) return true;
+                    // Search in area name
+                    const areaName = this.getAreaName(e.area_id) || '';
+                    if (areaName.toLowerCase().includes(search)) return true;
+                    return false;
+                });
+            }
+
+            return filtered;
         },
 
         /**
