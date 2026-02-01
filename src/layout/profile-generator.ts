@@ -13,6 +13,7 @@ interface GroupStyle {
     onOff: string;
     information: string;
     trigger: string;
+    labelStyle?: 'none' | 'name' | 'state' | 'name-and-state';
 }
 
 const ENTITY_CATEGORIES = {
@@ -36,7 +37,8 @@ const DEFAULT_GROUP_STYLE: GroupStyle = {
     background: '#1a1a2e',
     onOff: '#4CAF50',
     information: '#2196F3',
-    trigger: '#FF9800'
+    trigger: '#FF9800',
+    labelStyle: 'name'
 };
 
 interface EntityData {
@@ -332,6 +334,7 @@ function createEntityButtonAction(
     const textColor = categoryColor;
     const backgroundColor = style.background;
     const friendlyName = entity.friendly_name || entity.label || entity.entity_id || 'Entity';
+    const labelStyle = style.labelStyle || 'name';
 
     return {
         Name: friendlyName,
@@ -343,15 +346,17 @@ function createEntityButtonAction(
             iconColor: iconColor,
             textColor: textColor,
             backgroundColor: backgroundColor,
-            showTitle: true,
-            showState: true
+            // Label settings - our plugin renders text based on these
+            labelStyle: labelStyle,
+            showTitle: labelStyle !== 'none',
+            showState: labelStyle === 'state' || labelStyle === 'name-and-state'
         },
         State: 0,
         States: [
             {
-                Title: friendlyName.length > 12 ? friendlyName.substring(0, 11) + '…' : friendlyName,
+                Title: '',  // Blank - user can customize in Stream Deck software
                 TitleAlignment: "bottom",
-                ShowTitle: true
+                ShowTitle: false  // Our plugin renders text on the button image
             }
         ],
         UUID: "com.deckassistant.entity-button"
