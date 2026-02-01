@@ -287,9 +287,14 @@ function styleEditor() {
             textColor: '#CCCCCC'
         },
         currentPreset: 'dark',
-        previewPage: 'main', // 'main' or group name
+        previewPage: 'main', // 'main' or group name (legacy, kept for compatibility)
         ungroupedExpanded: false,
         labelSyncStatus: null, // null, 'syncing', 'synced', 'error'
+
+        // Preview page navigation
+        currentPreviewPageIndex: 0,
+        previewPages: [],
+        previewPageStack: [], // For folder navigation (back to main)
 
         // Theme Presets
         themePresets: {
@@ -2075,8 +2080,8 @@ function styleEditor() {
             this.wizardComplete = true;
             this.previewPage = 'main';
 
-            // Preload icons for the preview
-            this.preloadPreviewIcons();
+            // Build preview pages and preload icons
+            this.refreshPreviewPages();
         },
 
         async finishWizard() {
@@ -2107,8 +2112,8 @@ function styleEditor() {
             this.wizardComplete = true;
             this.previewPage = 'main';
 
-            // Preload icons for the preview
-            this.preloadPreviewIcons();
+            // Build preview pages and preload icons
+            this.refreshPreviewPages();
 
             // User can now customize styles and click "Generate Profile" when ready
         },
@@ -2997,9 +3002,161 @@ function styleEditor() {
         },
 
         /**
-         * Get buttons to display in preview based on current page
+         * Get the current preview page
+         */
+        getCurrentPreviewPage() {
+            if (this.previewPages.length === 0) {
+                this.previewPages = this.buildPagesFromStyleEditor();
+            }
+            return this.previewPages[this.currentPreviewPageIndex] || null;
+        },
+
+        /**
+         * Refresh preview pages
+         */
+        refreshPreviewPages() {
+            this.previewPages = this.buildPagesFromStyleEditor();
+            this.currentPreviewPageIndex = 0;
+            this.previewPageStack = [];
+            this.preloadPreviewIcons();
+        },
+
+        /**
+         * Handle preview button click for navigation
+         */
+        handlePreviewNavigation(button) {
+            if (!button || !button.type) return;
+
+            if (button.type === 'nav-next') {
+                // Find next page in linear sequence
+                const currentPage = this.previewPages[this.currentPreviewPageIndex];
+                if (!currentPage) return;
+
+                // For folder sub-pages, navigate within folder
+                if (currentPage.type === 'folder-sub') {
+                    const folderPages = this.previewPages.filter(p =>
+                        p.type === 'folder-sub' && p.groupName === currentPage.groupName
+                    );
+                    const currentFolderIndex = folderPages.indexOf(currentPage);
+                    if (currentFolderIndex < folderPages.length - 1) {
+                        this.currentPreviewPageIndex = this.previewPages.indexOf(folderPages[currentFolderIndex + 1]);
+                    }
+                } else {
+                    // Linear navigation
+                    if (this.currentPreviewPageIndex < this.previewPages.length - 1) {
+                        // Skip folder sub-pages
+                        let nextIndex = this.currentPreviewPageIndex + 1;
+                        while (nextIndex < this.previewPages.length &&
+                               this.previewPages[nextIndex].type === 'folder-sub') {
+                            nextIndex++;
+                        }
+                        if (nextIndex < this.previewPages.length) {
+                            this.currentPreviewPageIndex = nextIndex;
+                        }
+                    }
+                }
+                this.preloadPreviewIcons();
+            } else if (button.type === 'nav-prev') {
+                const currentPage = this.previewPages[this.currentPreviewPageIndex];
+                if (!currentPage) return;
+
+                // For folder sub-pages, navigate within folder
+                if (currentPage.type === 'folder-sub') {
+                    const folderPages = this.previewPages.filter(p =>
+                        p.type === 'folder-sub' && p.groupName === currentPage.groupName
+                    );
+                    const currentFolderIndex = folderPages.indexOf(currentPage);
+                    if (currentFolderIndex > 0) {
+                        this.currentPreviewPageIndex = this.previewPages.indexOf(folderPages[currentFolderIndex - 1]);
+                    }
+                } else {
+                    // Linear navigation - go back skipping folder sub-pages
+                    let prevIndex = this.currentPreviewPageIndex - 1;
+                    while (prevIndex >= 0 && this.previewPages[prevIndex].type === 'folder-sub') {
+                        prevIndex--;
+                    }
+                    if (prevIndex >= 0) {
+                        this.currentPreviewPageIndex = prevIndex;
+                    }
+                }
+                this.preloadPreviewIcons();
+            } else if (button.type === 'folder') {
+                // Find folder sub-page
+                const folderPage = this.previewPages.find(p =>
+                    p.type === 'folder-sub' && p.groupName === button.groupName
+                );
+                if (folderPage) {
+                    this.previewPageStack.push(this.currentPreviewPageIndex);
+                    this.currentPreviewPageIndex = this.previewPages.indexOf(folderPage);
+                    this.preloadPreviewIcons();
+                }
+            } else if (button.type === 'folder-up') {
+                // Return to main
+                if (this.previewPageStack.length > 0) {
+                    this.currentPreviewPageIndex = this.previewPageStack.pop();
+                } else {
+                    this.currentPreviewPageIndex = 0;
+                }
+                this.preloadPreviewIcons();
+            }
+        },
+
+        /**
+         * Get buttons for current preview page
          */
         getPreviewButtons() {
+            const page = this.getCurrentPreviewPage();
+            if (!page) return this.getEmptyPreviewButtons();
+
+            const buttons = [];
+            for (let row = 0; row < this.deviceSize.rows; row++) {
+                for (let col = 0; col < this.deviceSize.cols; col++) {
+                    const cell = page.layout[row]?.[col];
+                    if (cell) {
+                        buttons.push({
+                            ...cell,
+                            backgroundColor: cell.style?.backgroundColor || this.theme.backgroundColor,
+                            iconColor: cell.style?.iconColor || '#FFFFFF',
+                            textColor: cell.style?.textColor || '#FFFFFF'
+                        });
+                    } else {
+                        buttons.push({
+                            type: 'empty',
+                            label: '',
+                            icon: '',
+                            backgroundColor: '#2a2a2a',
+                            iconColor: '#666',
+                            textColor: '#666'
+                        });
+                    }
+                }
+            }
+            return buttons;
+        },
+
+        /**
+         * Get empty preview buttons
+         */
+        getEmptyPreviewButtons() {
+            const buttons = [];
+            const total = this.deviceSize.cols * this.deviceSize.rows;
+            for (let i = 0; i < total; i++) {
+                buttons.push({
+                    type: 'empty',
+                    label: '',
+                    icon: '',
+                    backgroundColor: '#2a2a2a',
+                    iconColor: '#666',
+                    textColor: '#666'
+                });
+            }
+            return buttons;
+        },
+
+        /**
+         * OLD Get buttons to display in preview based on current page (kept for reference)
+         */
+        getPreviewButtonsOld() {
             const buttons = [];
             const totalCells = this.deviceSize.cols * this.deviceSize.rows;
 
@@ -3110,9 +3267,10 @@ function styleEditor() {
          * Get style for a preview button
          */
         getPreviewButtonStyle(button) {
+            const isClickable = ['folder', 'folder-up', 'nav-prev', 'nav-next', 'back'].includes(button.type);
             return {
                 backgroundColor: button.backgroundColor,
-                cursor: button.type === 'folder' || button.type === 'back' ? 'pointer' : 'default'
+                cursor: isClickable ? 'pointer' : 'default'
             };
         },
 
@@ -3120,10 +3278,13 @@ function styleEditor() {
          * Handle click on a preview button
          */
         handlePreviewButtonClick(button) {
-            if (button.type === 'folder') {
-                this.previewPage = button.groupName;
-                this.preloadPreviewIcons();
-            } else if (button.type === 'back') {
+            // Handle navigation button types
+            if (['folder', 'folder-up', 'nav-prev', 'nav-next'].includes(button.type)) {
+                this.handlePreviewNavigation(button);
+                return;
+            }
+            // Legacy back button support
+            if (button.type === 'back') {
                 this.previewPage = 'main';
                 this.preloadPreviewIcons();
             }

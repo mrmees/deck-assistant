@@ -179,12 +179,7 @@
                 <!-- Center Panel - Stream Deck Preview -->
                 <div class="style-panel-center">
                     <div class="preview-header">
-                        <span class="preview-title" x-text="previewPage === 'main' ? 'Main Page' : previewPage"></span>
-                        <button class="btn btn-secondary btn-small"
-                                x-show="previewPage !== 'main'"
-                                @click="previewPage = 'main'">
-                            ← Back
-                        </button>
+                        <span class="preview-title" x-text="getCurrentPreviewPage()?.name || 'Preview'"></span>
                     </div>
 
                     <div class="preview-container">
@@ -192,7 +187,7 @@
                             <template x-for="(button, index) in getPreviewButtons()" :key="index">
                                 <div class="preview-button"
                                      :style="getPreviewButtonStyle(button)"
-                                     @click="handlePreviewButtonClick(button)">
+                                     @click="handlePreviewNavigation(button)">
                                     <div class="preview-button-icon">
                                         <!-- SVG icon when loaded -->
                                         <svg x-show="button.icon && getIconPath(button.icon)"
@@ -213,8 +208,8 @@
                     </div>
 
                     <div class="preview-info">
-                        <span x-text="deviceSize.cols + ' x ' + deviceSize.rows + ' grid'"></span>
-                        <span x-text="'Click folders to preview sub-pages'"></span>
+                        <span x-text="getCurrentPreviewPage()?.name || 'No pages'"></span>
+                        <span x-text="previewPages.length > 0 ? (currentPreviewPageIndex + 1) + ' / ' + previewPages.length : ''"></span>
                     </div>
                 </div>
 
