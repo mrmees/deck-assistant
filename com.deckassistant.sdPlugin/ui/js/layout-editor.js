@@ -363,9 +363,6 @@ function styleEditor() {
         wizardHideUnavailable: true, // Filter to hide disabled/unavailable entities (default on)
         groupDragIndex: null, // Index of group being dragged
         groupDragOverIndex: null, // Index of group being dragged over
-        // Ungrouped drag state
-        ungroupedDragIndex: null,
-        ungroupedDragOverIndex: null,
         wizardSelections: {
             startChoice: 'wizard', // 'wizard' or 'manual'
             approach: 'groups', // 'groups' or 'simple'
@@ -376,8 +373,6 @@ function styleEditor() {
             simpleEntities: [], // For simple flow
             simpleSort: 'area', // Sort order for simple flow
             ungroupedEntities: [], // Entities for main page (outside groups)
-            ungroupedSort: 'selection', // 'selection' | 'alpha' | 'domain' | 'area' | 'floor' | 'custom'
-            ungroupedOriginalOrder: [], // Preserved selection order for reset
             flatLayoutStyle: 'continuous', // 'continuous' or 'per-line'
             layoutStyle: 'groups-as-folders' // 'groups-as-folders', 'groups-as-pages', 'flat' (legacy, may remove)
         },
@@ -2139,7 +2134,6 @@ function styleEditor() {
 
             // Set sorted entities as ungrouped entities for Style Editor
             this.wizardSelections.ungroupedEntities = sortedEntityIds;
-            this.wizardSelections.ungroupedOriginalOrder = [...sortedEntityIds]; // Preserve original order
             this.wizardSelections.groups = []; // No groups in quick setup
 
             // Initialize ungrouped style with current preset
@@ -2183,7 +2177,6 @@ function styleEditor() {
             } else {
                 // Simple flow - create a single flat group with all entities
                 this.wizardSelections.ungroupedEntities = simpleEntities;
-                this.wizardSelections.ungroupedOriginalOrder = [...simpleEntities]; // Preserve original order
             }
 
             // Close wizard and show Style Editor
@@ -2818,172 +2811,6 @@ function styleEditor() {
             }
 
             return { folderUp, prev, next };
-        },
-
-        /**
-         * Get available sort options based on ungrouped entity data
-         * Only shows options that would actually change the order
-         */
-        getAvailableSortOptions() {
-            const entityIds = this.wizardSelections.ungroupedEntities || [];
-            const entities = entityIds.map(id => this.getEntityById(id)).filter(Boolean);
-
-            const options = [
-                { id: 'selection', label: 'Selection Order' },
-                { id: 'alpha', label: 'Alphabetical' }
-            ];
-
-            // Only if multiple domains
-            const uniqueDomains = new Set(entities.map(e => e.domain));
-            if (uniqueDomains.size > 1) {
-                options.push({ id: 'domain', label: 'By Domain' });
-            }
-
-            // Only if multiple areas
-            const uniqueAreas = new Set(entities.map(e => e.area_id).filter(Boolean));
-            if (uniqueAreas.size > 1) {
-                options.push({ id: 'area', label: 'By Area' });
-            }
-
-            // Only if multiple floors
-            const floorsWithEntities = entities.map(e => {
-                const area = this.areas.find(a => a.area_id === e.area_id);
-                return area?.floor_id;
-            }).filter(Boolean);
-            const uniqueFloors = new Set(floorsWithEntities);
-            if (uniqueFloors.size > 1) {
-                options.push({ id: 'floor', label: 'By Floor' });
-            }
-
-            return options;
-        },
-
-        /**
-         * Apply sort to ungrouped entities
-         */
-        applyUngroupedSort(sortType) {
-            this.wizardSelections.ungroupedSort = sortType;
-
-            if (sortType === 'selection') {
-                // Reset to original order
-                this.wizardSelections.ungroupedEntities = [...this.wizardSelections.ungroupedOriginalOrder];
-                this.preloadPreviewIcons();
-                return;
-            }
-
-            const entityIds = this.wizardSelections.ungroupedEntities || [];
-            const entities = entityIds.map(id => ({
-                id,
-                data: this.getEntityById(id)
-            })).filter(e => e.data);
-
-            switch (sortType) {
-                case 'alpha':
-                    entities.sort((a, b) => {
-                        const nameA = (a.data.friendly_name || a.id).toLowerCase();
-                        const nameB = (b.data.friendly_name || b.id).toLowerCase();
-                        return nameA.localeCompare(nameB);
-                    });
-                    break;
-
-                case 'domain':
-                    entities.sort((a, b) => {
-                        const domainCompare = a.data.domain.localeCompare(b.data.domain);
-                        if (domainCompare !== 0) return domainCompare;
-                        const nameA = (a.data.friendly_name || a.id).toLowerCase();
-                        const nameB = (b.data.friendly_name || b.id).toLowerCase();
-                        return nameA.localeCompare(nameB);
-                    });
-                    break;
-
-                case 'area':
-                    entities.sort((a, b) => {
-                        const areaA = this.getAreaName(a.data.area_id) || 'zzz';
-                        const areaB = this.getAreaName(b.data.area_id) || 'zzz';
-                        const areaCompare = areaA.localeCompare(areaB);
-                        if (areaCompare !== 0) return areaCompare;
-                        const nameA = (a.data.friendly_name || a.id).toLowerCase();
-                        const nameB = (b.data.friendly_name || b.id).toLowerCase();
-                        return nameA.localeCompare(nameB);
-                    });
-                    break;
-
-                case 'floor':
-                    entities.sort((a, b) => {
-                        const getFloor = (entity) => {
-                            const area = this.areas.find(ar => ar.area_id === entity.area_id);
-                            if (!area?.floor_id) return 999;
-                            const floor = this.floors.find(f => f.floor_id === area.floor_id);
-                            return floor?.level ?? 999;
-                        };
-                        const floorCompare = getFloor(a.data) - getFloor(b.data);
-                        if (floorCompare !== 0) return floorCompare;
-                        const nameA = (a.data.friendly_name || a.id).toLowerCase();
-                        const nameB = (b.data.friendly_name || b.id).toLowerCase();
-                        return nameA.localeCompare(nameB);
-                    });
-                    break;
-            }
-
-            this.wizardSelections.ungroupedEntities = entities.map(e => e.id);
-            this.preloadPreviewIcons();
-        },
-
-        handleUngroupedDragStart(event, index) {
-            this.ungroupedDragIndex = index;
-            event.dataTransfer.effectAllowed = 'move';
-        },
-
-        handleUngroupedDragOver(event, index) {
-            event.preventDefault();
-            this.ungroupedDragOverIndex = index;
-        },
-
-        handleUngroupedDragLeave() {
-            this.ungroupedDragOverIndex = null;
-        },
-
-        handleUngroupedDrop(event, targetIndex) {
-            event.preventDefault();
-            const sourceIndex = this.ungroupedDragIndex;
-
-            if (sourceIndex !== null && sourceIndex !== targetIndex) {
-                // Reorder the array
-                const items = [...this.wizardSelections.ungroupedEntities];
-                const [movedItem] = items.splice(sourceIndex, 1);
-                items.splice(targetIndex, 0, movedItem);
-                this.wizardSelections.ungroupedEntities = items;
-
-                // Mark as custom sort
-                this.wizardSelections.ungroupedSort = 'custom';
-            }
-
-            this.ungroupedDragIndex = null;
-            this.ungroupedDragOverIndex = null;
-            this.preloadPreviewIcons();
-        },
-
-        /**
-         * Calculate which page an ungrouped entity will be on
-         * Accounts for folder buttons and nav buttons taking slots
-         */
-        getEntityPageNumber(ungroupedIndex) {
-            const groups = this.wizardSelections.groups || [];
-            const folderCount = groups.filter(g => g.displayType === 'folder').length;
-            const flatCount = groups.filter(g => g.displayType === 'flat')
-                .reduce((sum, g) => sum + g.entities.length, 0);
-
-            const cellsPerPage = this.deviceSize.cols * this.deviceSize.rows;
-            // Reserve 1 slot for nav on main page (->), 2 for overflow pages (<- ->)
-            const mainAvailable = cellsPerPage - 1 - folderCount - flatCount;
-            const overflowAvailable = cellsPerPage - 2;
-
-            if (ungroupedIndex < mainAvailable) {
-                return 1; // Main page
-            }
-
-            const remaining = ungroupedIndex - mainAvailable;
-            return 2 + Math.floor(remaining / overflowAvailable);
         },
 
         // ========== Label Helpers ==========
