@@ -189,7 +189,7 @@ function layoutEditor() {
                 options: [
                     { id: 'area', name: 'By Area/Room', description: 'Select all entities from a specific area' },
                     { id: 'domain', name: 'By Device Type', description: 'Select all lights, switches, etc.' },
-                    { id: 'custom', name: 'Custom Selection', description: 'Pick any entities you want' }
+                    { id: 'custom', name: 'Custom Selection', description: 'Pick any entities you want, best for unorganized Home Assistant installations' }
                 ]
             },
             {
