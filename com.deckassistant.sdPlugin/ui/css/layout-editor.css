@@ -680,9 +680,9 @@ body {
     background: #2a2a2a;
     border-radius: 12px;
     padding: 32px;
-    width: 500px;
-    max-width: 90vw;
-    max-height: 85vh;
+    width: 80vw;
+    height: 80vh;
+    max-width: 900px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -818,7 +818,8 @@ body {
 }
 
 .wizard-scrollable {
-    max-height: 280px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding-right: 8px;
     margin-bottom: 8px;
