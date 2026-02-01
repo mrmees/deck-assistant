@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Deck Assistant - Layout Editor</title>
+    <script defer src="js/alpine.min.js"></script>
+    <link rel="stylesheet" href="css/layout-editor.css">
+</head>
+<body>
+    <div x-data="layoutEditor()" x-init="init()">
+        <!-- Header -->
+        <header class="header">
+            <h1>Deck Assistant - Layout Editor</h1>
+            <div class="device-info">
+                <select class="filter-select" x-model="selectedDeviceId" @change="updateDeviceSize()" style="margin-right: 8px;">
+                    <template x-for="device in availableDevices" :key="device.id">
+                        <option :value="device.id" x-text="device.name + ' (' + device.cols + 'x' + device.rows + ')'"></option>
+                    </template>
+                </select>
+                <span class="connection-status" :class="connected ? 'connected' : 'disconnected'"></span>
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <template x-if="loading">
+            <div class="loading">
+                <div class="spinner"></div>
+                <span x-text="status"></span>
+                <div style="margin-top: 20px; font-size: 11px; color: #666;">
+                    <div x-text="'Parent window: ' + (parentWindow ? 'found' : 'not found')"></div>
+                    <div x-text="'Entities loaded: ' + allEntities.length"></div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Main Content -->
+        <template x-if="!loading && connected">
+            <div class="main-content">
+                <!-- Left Panel - Entity Selection -->
+                <div class="left-panel">
+                    <div class="panel-header">
+                        <span>Entity Selection</span>
+                    </div>
+
+                    <!-- Mode Selector -->
+                    <div class="mode-selector">
+                        <button class="mode-btn" :class="{ active: mode === 'freeform' }" @click="mode = 'freeform'">
+                            Free-form
+                        </button>
+                        <button class="mode-btn" :class="{ active: mode === 'wizard' }" @click="startWizard()">
+                            Guide Me
+                        </button>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="filters">
+                        <input type="text"
+                               class="filter-input"
+                               placeholder="Search entities..."
+                               x-model="searchFilter"
+                               @input="filterEntities()">
+                        <div class="filter-row">
+                            <select class="filter-select" x-model="domainFilter" @change="filterEntities()">
+                                <option value="">All Domains</option>
+                                <template x-for="domain in uniqueDomains" :key="domain">
+                                    <option :value="domain" x-text="domain"></option>
+                                </template>
+                            </select>
+                            <select class="filter-select" x-model="areaFilter" @change="filterEntities()">
+                                <option value="">All Areas</option>
+                                <template x-for="area in areas" :key="area.area_id">
+                                    <option :value="area.area_id" x-text="area.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Entity List -->
+                    <div class="entity-list">
+                        <template x-if="filteredEntities.length === 0">
+                            <div class="empty-state">
+                                <div class="empty-state-title">No entities found</div>
+                                <div class="empty-state-text">Try adjusting your filters</div>
+                            </div>
+                        </template>
+                        <template x-for="entity in filteredEntities" :key="entity.entity_id">
+                            <div class="entity-item"
+                                 :class="{ selected: isSelected(entity.entity_id) }"
+                                 @click="toggleSelection(entity.entity_id)"
+                                 draggable="true"
+                                 @dragstart="handleDragStart($event, entity)">
+                                <input type="checkbox"
+                                       :checked="isSelected(entity.entity_id)"
+                                       @click.stop="toggleSelection(entity.entity_id)">
+                                <div class="entity-info">
+                                    <div class="entity-name" x-text="entity.friendly_name || entity.entity_id"></div>
+                                    <div class="entity-id" x-text="entity.entity_id"></div>
+                                </div>
+                                <span class="entity-domain" x-text="entity.domain"></span>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Selection Summary -->
+                    <div class="selection-summary">
+                        <span class="selection-count" x-text="`${selectedEntities.length} selected`"></span>
+                        <div class="selection-actions">
+                            <button class="btn btn-secondary" @click="selectAllVisible()" x-show="filteredEntities.length > 0">
+                                Select All
+                            </button>
+                            <button class="btn btn-secondary" @click="clearSelection()" x-show="selectedEntities.length > 0">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Center Panel - Grid Preview -->
+                <div class="center-panel">
+                    <div class="grid-container">
+                        <div class="grid-preview" :style="gridStyle">
+                            <template x-for="row in deviceSize.rows" :key="'row-' + row">
+                                <template x-for="col in deviceSize.cols" :key="'cell-' + col + '-' + row">
+                                    <div class="grid-cell"
+                                         :class="{
+                                             'has-entity': getEntityAt(currentPage, col - 1, row - 1),
+                                             'drop-target': dropTarget?.col === col - 1 && dropTarget?.row === row - 1
+                                         }"
+                                         @drop="handleDrop($event, col - 1, row - 1)"
+                                         @dragover.prevent="handleDragOver($event, col - 1, row - 1)"
+                                         @dragleave="handleDragLeave()"
+                                         @click="handleCellClick(col - 1, row - 1)">
+                                        <template x-if="getEntityAt(currentPage, col - 1, row - 1)">
+                                            <div class="entity-preview" :style="getEntityStyle(getEntityAt(currentPage, col - 1, row - 1))">
+                                                <div class="entity-icon" x-text="getEntityIcon(getEntityAt(currentPage, col - 1, row - 1))"></div>
+                                                <div class="entity-label" x-text="getEntityLabel(getEntityAt(currentPage, col - 1, row - 1))"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Page Tabs -->
+                    <div class="page-tabs">
+                        <template x-for="(page, index) in pages" :key="page.id">
+                            <button class="page-tab"
+                                    :class="{ active: currentPage === index }"
+                                    @click="currentPage = index"
+                                    x-text="page.name || `Page ${index + 1}`">
+                            </button>
+                        </template>
+                        <button class="page-tab add-page" @click="addPage()">+ Add Page</button>
+                    </div>
+                </div>
+
+                <!-- Right Panel - Groups & Theming -->
+                <div class="right-panel">
+                    <div class="right-tabs">
+                        <button class="right-tab" :class="{ active: rightTab === 'groups' }" @click="rightTab = 'groups'">
+                            Groups
+                        </button>
+                        <button class="right-tab" :class="{ active: rightTab === 'theming' }" @click="rightTab = 'theming'">
+                            Theming
+                        </button>
+                    </div>
+
+                    <div class="right-content">
+                        <!-- Groups Tab -->
+                        <template x-if="rightTab === 'groups'">
+                            <div>
+                                <template x-if="groups.length === 0">
+                                    <div class="empty-state">
+                                        <div class="empty-state-title">No groups yet</div>
+                                        <div class="empty-state-text">Select entities and click "Auto-Group" to organize them</div>
+                                    </div>
+                                </template>
+                                <div class="group-list">
+                                    <template x-for="group in groups" :key="group.id">
+                                        <div class="group-item">
+                                            <div class="group-header" @click="group.expanded = !group.expanded">
+                                                <span class="group-name" x-text="group.name"></span>
+                                                <span class="group-count" x-text="group.entities.length"></span>
+                                                <select class="filter-select"
+                                                        style="width: auto; font-size: 10px;"
+                                                        x-model="group.type"
+                                                        @click.stop>
+                                                    <option value="folder">Folder</option>
+                                                    <option value="page">Page</option>
+                                                </select>
+                                            </div>
+                                            <template x-if="group.expanded">
+                                                <div class="group-entities">
+                                                    <template x-for="entityId in group.entities" :key="entityId">
+                                                        <div class="group-entity" x-text="getEntityName(entityId)"></div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                                <template x-if="selectedEntities.length > 0 && groups.length === 0">
+                                    <button class="btn btn-primary" style="width: 100%; margin-top: 16px;" @click="autoGroup()">
+                                        Auto-Group Selected
+                                    </button>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- Theming Tab -->
+                        <template x-if="rightTab === 'theming'">
+                            <div>
+                                <div class="theme-section">
+                                    <div class="theme-section-title">Domain Colors</div>
+                                    <template x-for="(color, domain) in domainColors" :key="domain">
+                                        <div class="theme-row">
+                                            <span class="theme-label" x-text="domain"></span>
+                                            <input type="color" class="color-picker" x-model="domainColors[domain]">
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="theme-section">
+                                    <div class="theme-section-title">Background</div>
+                                    <div class="theme-row">
+                                        <span class="theme-label">Button Background</span>
+                                        <input type="color" class="color-picker" x-model="theme.backgroundColor">
+                                    </div>
+                                </div>
+                                <div class="theme-section">
+                                    <div class="theme-section-title">Back Button</div>
+                                    <div class="theme-row">
+                                        <span class="theme-label">Position</span>
+                                        <select class="filter-select" x-model="theme.backButtonPosition" style="width: auto;">
+                                            <option value="bottom-right">Bottom Right</option>
+                                            <option value="bottom-left">Bottom Left</option>
+                                            <option value="top-right">Top Right</option>
+                                            <option value="top-left">Top Left</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Footer -->
+        <template x-if="!loading && connected">
+            <footer class="footer">
+                <button class="btn btn-secondary" @click="syncLabels()" :disabled="selectedEntities.length === 0">
+                    Sync Labels to HA
+                </button>
+                <button class="btn btn-primary" @click="showProfileNameModal = true" :disabled="!hasAnyEntitiesPlaced()">
+                    Generate Profile
+                </button>
+            </footer>
+        </template>
+
+        <!-- Profile Name Modal -->
+        <template x-if="showProfileNameModal">
+            <div class="modal-overlay" @click.self="showProfileNameModal = false">
+                <div class="modal">
+                    <div class="modal-title">Name Your Profile</div>
+                    <input type="text"
+                           class="modal-input"
+                           placeholder="e.g., Home Assistant"
+                           x-model="profileName"
+                           @keyup.enter="generateProfile()">
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" @click="showProfileNameModal = false">Cancel</button>
+                        <button class="btn btn-primary" @click="generateProfile()" :disabled="!profileName.trim()">Generate</button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Generated Profile Modal -->
+        <template x-if="showGeneratedProfileModal && generatedProfile">
+            <div class="modal-overlay" @click.self="showGeneratedProfileModal = false">
+                <div class="modal" style="width: 500px;">
+                    <div class="modal-title">Profile Generated!</div>
+                    <template x-if="generatedProfile.filePath">
+                        <div>
+                            <div style="margin-bottom: 16px; padding: 12px; background: #1a3d1a; border-radius: 6px; color: #8f8;">
+                                ✓ Saved to Downloads folder
+                            </div>
+                            <div style="margin-bottom: 16px; padding: 12px; background: #2a2a2a; border-radius: 6px; font-family: monospace; font-size: 11px; word-break: break-all;">
+                                <span x-text="generatedProfile.filePath"></span>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="!generatedProfile.filePath">
+                        <div style="margin-bottom: 16px; padding: 12px; background: #3d1a1a; border-radius: 6px; color: #f88;">
+                            ✗ Could not save file. Check Downloads folder permissions.
+                        </div>
+                    </template>
+                    <div style="margin-bottom: 16px; font-size: 13px; color: #ccc;">
+                        To import: Double-click the <strong>.streamDeckProfile</strong> file in your Downloads folder.
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-primary" @click="showGeneratedProfileModal = false">Done</button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Wizard Overlay -->
+        <template x-if="showWizard">
+            <div class="wizard-overlay">
+                <div class="wizard">
+                    <div class="wizard-step">
+                        <!-- Progress Dots -->
+                        <div class="wizard-progress">
+                            <template x-for="(step, index) in wizardSteps" :key="index">
+                                <div class="wizard-dot"
+                                     :class="{
+                                         active: wizardStep === index,
+                                         completed: wizardStep > index
+                                     }">
+                                </div>
+                            </template>
+                        </div>
+
+                        <div class="wizard-title" x-text="wizardSteps[wizardStep].title"></div>
+                        <div class="wizard-subtitle" x-text="wizardSteps[wizardStep].subtitle"></div>
+
+                        <!-- Welcome Step -->
+                        <template x-if="wizardSteps[wizardStep].id === 'welcome'">
+                            <div class="wizard-welcome">
+                                <p>This wizard will help you:</p>
+                                <ul>
+                                    <li>Select which areas and devices to control</li>
+                                    <li>Organize them into groups</li>
+                                    <li>Save preferences to Home Assistant labels</li>
+                                    <li>Generate a Stream Deck profile</li>
+                                </ul>
+                                <p class="wizard-note">Your preferences are stored as labels in Home Assistant, so they persist across sessions.</p>
+                            </div>
+                        </template>
+
+                        <!-- Multi-select Steps (Areas, Domains, Entities) -->
+                        <template x-if="wizardSteps[wizardStep].type === 'multiselect'">
+                            <div class="wizard-options wizard-scrollable">
+                                <template x-for="option in getWizardOptions()" :key="option.id">
+                                    <div class="wizard-option"
+                                         :class="{ selected: isWizardOptionSelected(option.id) }"
+                                         @click="toggleWizardOption(option.id)">
+                                        <input type="checkbox" :checked="isWizardOptionSelected(option.id)">
+                                        <div class="wizard-option-content">
+                                            <span class="wizard-option-name" x-text="option.name"></span>
+                                            <span class="wizard-option-subtitle" x-text="option.subtitle" x-show="option.subtitle"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- Choice Step (Grouping) -->
+                        <template x-if="wizardSteps[wizardStep].type === 'choice'">
+                            <div class="wizard-options">
+                                <template x-for="option in getWizardOptions()" :key="option.id">
+                                    <div class="wizard-option wizard-option-large"
+                                         :class="{ selected: isWizardOptionSelected(option.id) }"
+                                         @click="toggleWizardOption(option.id)">
+                                        <input type="radio" :checked="isWizardOptionSelected(option.id)" :name="'grouping'">
+                                        <div class="wizard-option-content">
+                                            <span class="wizard-option-name" x-text="option.name"></span>
+                                            <span class="wizard-option-description" x-text="option.description"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- Confirm Step -->
+                        <template x-if="wizardSteps[wizardStep].id === 'confirm'">
+                            <div class="wizard-confirm">
+                                <div class="wizard-summary">
+                                    <div class="wizard-summary-item">
+                                        <span class="wizard-summary-label">Areas:</span>
+                                        <span class="wizard-summary-value" x-text="wizardSelections.areas.length || 'All'"></span>
+                                    </div>
+                                    <div class="wizard-summary-item">
+                                        <span class="wizard-summary-label">Device Types:</span>
+                                        <span class="wizard-summary-value" x-text="wizardSelections.domains.length || 'All'"></span>
+                                    </div>
+                                    <div class="wizard-summary-item">
+                                        <span class="wizard-summary-label">Entities:</span>
+                                        <span class="wizard-summary-value" x-text="wizardSelections.entities.length"></span>
+                                    </div>
+                                    <div class="wizard-summary-item">
+                                        <span class="wizard-summary-label">Grouping:</span>
+                                        <span class="wizard-summary-value" x-text="wizardSelections.grouping === 'by-area' ? 'By Room' : wizardSelections.grouping === 'by-domain' ? 'By Type' : 'None'"></span>
+                                    </div>
+                                </div>
+                                <p class="wizard-note">Click "Finish" to save these labels to Home Assistant and generate your profile.</p>
+                            </div>
+                        </template>
+
+                        <!-- Selection count for multi-select steps -->
+                        <template x-if="wizardSteps[wizardStep].type === 'multiselect'">
+                            <div class="wizard-selection-count">
+                                <span x-show="wizardSteps[wizardStep].id === 'areas'" x-text="`${wizardSelections.areas.length} areas selected`"></span>
+                                <span x-show="wizardSteps[wizardStep].id === 'domains'" x-text="`${wizardSelections.domains.length} types selected`"></span>
+                                <span x-show="wizardSteps[wizardStep].id === 'entities'" x-text="`${wizardSelections.entities.length} entities selected`"></span>
+                            </div>
+                        </template>
+
+                        <div class="wizard-actions">
+                            <button class="btn btn-secondary" @click="wizardBack()">
+                                <span x-text="wizardStep === 0 ? 'Cancel' : 'Back'"></span>
+                            </button>
+                            <button class="btn btn-primary" @click="wizardNext()">
+                                <span x-text="wizardStep === wizardSteps.length - 1 ? 'Finish' : 'Next'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <script src="js/layout-editor.js"></script>
+</body>
+</html>
