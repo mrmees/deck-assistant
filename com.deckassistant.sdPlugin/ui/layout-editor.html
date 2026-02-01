@@ -506,49 +506,87 @@
                         <template x-if="wizardSteps[wizardStep].id === 'group-layout'">
                             <div class="wizard-group-layout">
                                 <div class="wizard-group-config-header">
-                                    <p class="wizard-group-layout-intro">Choose how each group renders. Order below reflects render priority.</p>
                                     <div class="wizard-display-options-summary">
                                         <span><strong>Folder</strong> — Button on main page; entities on separate sub-page</span>
-                                        <span><strong>Flat</strong> — Entities render directly on main page after folders</span>
+                                        <span><strong>Flat</strong> — Entities render directly on main page</span>
                                         <span><strong>Page</strong> — Entities on separate page(s) at end of navigation</span>
                                     </div>
-                                    <p class="wizard-group-layout-hint">Drag groups to reorder render priority within each type.</p>
                                 </div>
 
-                                <div class="wizard-group-config-list">
-                                    <template x-for="(group, index) in wizardSelections.groups" :key="group.name">
-                                        <div class="wizard-group-config-item"
-                                             draggable="true"
-                                             :class="{ 'drag-over': groupDragOverIndex === index }"
-                                             @dragstart="handleGroupDragStart($event, index)"
-                                             @dragend="handleGroupDragEnd()"
-                                             @dragover.prevent="handleGroupDragOver($event, index)"
-                                             @dragleave="handleGroupDragLeave()"
-                                             @drop="handleGroupDrop($event, index)">
-                                            <div class="wizard-group-drag-handle">⋮⋮</div>
-                                            <div class="wizard-group-config-info">
-                                                <span class="wizard-group-config-name" x-text="group.name"></span>
-                                                <span class="wizard-group-config-count" x-text="group.entities.length + ' entities'"></span>
+                                <!-- Main Page Layout Section -->
+                                <div class="wizard-layout-section">
+                                    <div class="wizard-section-header">
+                                        <h4>Main Page Layout</h4>
+                                        <p class="wizard-section-hint">Drag to set render order</p>
+                                    </div>
+
+                                    <div class="wizard-sortable-list" id="main-layout-list">
+                                        <template x-for="(item, index) in getMainLayoutItems()" :key="item.id">
+                                            <div class="wizard-sortable-item"
+                                                 draggable="true"
+                                                 @dragstart="handleLayoutDragStart($event, item)"
+                                                 @dragover.prevent="handleLayoutDragOver($event, item)"
+                                                 @drop="handleLayoutDrop($event, item)">
+                                                <span class="wizard-drag-handle">&#8801;</span>
+                                                <span class="wizard-item-name" x-text="item.name"></span>
+                                                <span class="wizard-item-count" x-text="item.entities.length + ' items'"></span>
+
+                                                <!-- Display type selector (hidden for ungrouped) -->
+                                                <template x-if="item.type !== 'ungrouped'">
+                                                    <select class="wizard-display-select"
+                                                            :value="item.displayType"
+                                                            @change="setGroupDisplayType(item.name, $event.target.value)">
+                                                        <option value="folder">Folder</option>
+                                                        <option value="flat">Flat</option>
+                                                        <option value="page">Page</option>
+                                                    </select>
+                                                </template>
+                                                <template x-if="item.type === 'ungrouped'">
+                                                    <span class="wizard-display-locked">Flat</span>
+                                                </template>
+
+                                                <!-- New Row checkbox (only for flat groups, not ungrouped) -->
+                                                <template x-if="item.displayType === 'flat' && item.type !== 'ungrouped'">
+                                                    <label class="wizard-newrow-checkbox">
+                                                        <input type="checkbox"
+                                                               :checked="item.startNewRow"
+                                                               @change="setGroupStartNewRow(item.name, $event.target.checked)">
+                                                        New Row
+                                                    </label>
+                                                </template>
                                             </div>
-                                            <div class="wizard-group-config-options">
-                                                <button class="wizard-display-btn"
-                                                        :class="{ active: group.displayType === 'folder' }"
-                                                        @click="setGroupDisplayType(index, 'folder')">
-                                                    Folder
-                                                </button>
-                                                <button class="wizard-display-btn"
-                                                        :class="{ active: group.displayType === 'flat' }"
-                                                        @click="setGroupDisplayType(index, 'flat')">
-                                                    Flat
-                                                </button>
-                                                <button class="wizard-display-btn"
-                                                        :class="{ active: group.displayType === 'page' }"
-                                                        @click="setGroupDisplayType(index, 'page')">
-                                                    Page
-                                                </button>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <!-- Separator -->
+                                <div class="wizard-section-separator"></div>
+
+                                <!-- Page Groups Section -->
+                                <div class="wizard-layout-section wizard-page-section">
+                                    <div class="wizard-section-header">
+                                        <h4>Separate Pages</h4>
+                                        <p class="wizard-section-hint">Render at end of navigation chain</p>
+                                    </div>
+
+                                    <div class="wizard-sortable-list" id="page-layout-list">
+                                        <template x-for="group in getPageGroups()" :key="group.name">
+                                            <div class="wizard-sortable-item wizard-page-item"
+                                                 draggable="true"
+                                                 @dragstart="handlePageDragStart($event, group)"
+                                                 @dragover.prevent="handlePageDragOver($event, group)"
+                                                 @drop="handlePageDrop($event, group)">
+                                                <span class="wizard-drag-handle">&#8801;</span>
+                                                <span class="wizard-item-name" x-text="group.name"></span>
+                                                <span class="wizard-item-count" x-text="group.entities.length + ' items'"></span>
+                                                <span class="wizard-display-locked">Page</span>
                                             </div>
-                                        </div>
-                                    </template>
+                                        </template>
+
+                                        <template x-if="getPageGroups().length === 0">
+                                            <div class="wizard-empty-hint">No page groups configured</div>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </template>
