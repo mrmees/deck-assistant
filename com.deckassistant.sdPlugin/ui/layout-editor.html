@@ -530,8 +530,8 @@
                                 <div class="wizard-group-config-header">
                                     <div class="wizard-display-options-summary">
                                         <span><strong>Folder</strong> — Button opens sub-page</span>
-                                        <span><strong>Page</strong> — Separate top-level page</span>
                                         <span><strong>Flat</strong> — Entities on main page</span>
+                                        <span><strong>Page</strong> — Separate top-level page</span>
                                     </div>
                                     <p class="wizard-group-layout-intro">Drag to reorder priority</p>
                                 </div>
@@ -558,14 +558,14 @@
                                                     Folder
                                                 </button>
                                                 <button class="wizard-display-btn"
-                                                        :class="{ active: group.displayType === 'page' }"
-                                                        @click="setGroupDisplayType(index, 'page')">
-                                                    Page
-                                                </button>
-                                                <button class="wizard-display-btn"
                                                         :class="{ active: group.displayType === 'flat' }"
                                                         @click="setGroupDisplayType(index, 'flat')">
                                                     Flat
+                                                </button>
+                                                <button class="wizard-display-btn"
+                                                        :class="{ active: group.displayType === 'page' }"
+                                                        @click="setGroupDisplayType(index, 'page')">
+                                                    Page
                                                 </button>
                                             </div>
                                         </div>
