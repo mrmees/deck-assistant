@@ -2992,11 +2992,37 @@ function styleEditor() {
                 for (let col = 0; col < this.deviceSize.cols; col++) {
                     const cell = page.layout[row]?.[col];
                     if (cell) {
+                        // Determine colors based on cell type
+                        let backgroundColor = cell.style?.background || this.ungroupedStyle.background;
+                        let iconColor = '#FFFFFF';
+                        let textColor = '#FFFFFF';
+
+                        if (cell.type === 'entity') {
+                            // For entities, use category-based colors
+                            const entity = this.getEntityById(cell.entityId);
+                            const style = cell.style || this.ungroupedStyle;
+                            if (entity) {
+                                const categoryColor = this.getEntityCategoryColor(entity, style);
+                                iconColor = categoryColor;
+                                textColor = categoryColor;
+                            }
+                        } else if (cell.type === 'nav-next' || cell.type === 'nav-prev' || cell.type === 'folder-up') {
+                            // Navigation buttons use preset background with white icons
+                            const preset = this.themePresets[this.currentPreset];
+                            backgroundColor = preset.background;
+                            iconColor = '#FFFFFF';
+                            textColor = '#FFFFFF';
+                        } else if (cell.type === 'folder') {
+                            // Folder buttons use their group style background with white icons
+                            iconColor = '#FFFFFF';
+                            textColor = '#FFFFFF';
+                        }
+
                         buttons.push({
                             ...cell,
-                            backgroundColor: cell.style?.background || this.ungroupedStyle.background,
-                            iconColor: cell.style?.iconColor || '#FFFFFF',
-                            textColor: cell.style?.textColor || '#FFFFFF'
+                            backgroundColor,
+                            iconColor,
+                            textColor
                         });
                     } else {
                         buttons.push({
