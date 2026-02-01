@@ -64,22 +64,40 @@
                                         <!-- Style Controls -->
                                         <div class="style-controls">
                                             <div class="style-control-row">
+                                                <label>Preset</label>
+                                                <select class="style-select"
+                                                        :value="getGroupStyle(group.name).preset || 'custom'"
+                                                        @change="applyPreset($event.target.value, group.name)">
+                                                    <option value="custom">Custom</option>
+                                                    <option value="modern">Modern</option>
+                                                    <option value="classic">Classic</option>
+                                                    <option value="minimal">Minimal</option>
+                                                    <option value="vibrant">Vibrant</option>
+                                                </select>
+                                            </div>
+                                            <div class="style-control-row">
                                                 <label>Background</label>
                                                 <input type="color"
-                                                       :value="getGroupStyle(group.name).backgroundColor"
-                                                       @input="setGroupStyleProp(group.name, 'backgroundColor', $event.target.value)">
+                                                       :value="getGroupStyle(group.name).background"
+                                                       @input="setGroupStyleProp(group.name, 'background', $event.target.value)">
                                             </div>
                                             <div class="style-control-row">
-                                                <label>Icon Color</label>
+                                                <label>On/Off</label>
                                                 <input type="color"
-                                                       :value="getGroupStyle(group.name).iconColor"
-                                                       @input="setGroupStyleProp(group.name, 'iconColor', $event.target.value)">
+                                                       :value="getGroupStyle(group.name).onOff"
+                                                       @input="setGroupStyleProp(group.name, 'onOff', $event.target.value)">
                                             </div>
                                             <div class="style-control-row">
-                                                <label>Text Color</label>
+                                                <label>Information</label>
                                                 <input type="color"
-                                                       :value="getGroupStyle(group.name).textColor"
-                                                       @input="setGroupStyleProp(group.name, 'textColor', $event.target.value)">
+                                                       :value="getGroupStyle(group.name).information"
+                                                       @input="setGroupStyleProp(group.name, 'information', $event.target.value)">
+                                            </div>
+                                            <div class="style-control-row">
+                                                <label>Trigger</label>
+                                                <input type="color"
+                                                       :value="getGroupStyle(group.name).trigger"
+                                                       @input="setGroupStyleProp(group.name, 'trigger', $event.target.value)">
                                             </div>
                                         </div>
 
@@ -115,22 +133,40 @@
                                         <div class="style-group-content">
                                             <div class="style-controls">
                                                 <div class="style-control-row">
+                                                    <label>Preset</label>
+                                                    <select class="style-select"
+                                                            :value="ungroupedStyle.preset || 'custom'"
+                                                            @change="applyPreset($event.target.value, '__ungrouped__')">
+                                                        <option value="custom">Custom</option>
+                                                        <option value="modern">Modern</option>
+                                                        <option value="classic">Classic</option>
+                                                        <option value="minimal">Minimal</option>
+                                                        <option value="vibrant">Vibrant</option>
+                                                    </select>
+                                                </div>
+                                                <div class="style-control-row">
                                                     <label>Background</label>
                                                     <input type="color"
-                                                           :value="ungroupedStyle.backgroundColor"
-                                                           @input="ungroupedStyle.backgroundColor = $event.target.value">
+                                                           :value="ungroupedStyle.background"
+                                                           @input="ungroupedStyle.background = $event.target.value">
                                                 </div>
                                                 <div class="style-control-row">
-                                                    <label>Icon Color</label>
+                                                    <label>On/Off</label>
                                                     <input type="color"
-                                                           :value="ungroupedStyle.iconColor"
-                                                           @input="ungroupedStyle.iconColor = $event.target.value">
+                                                           :value="ungroupedStyle.onOff"
+                                                           @input="ungroupedStyle.onOff = $event.target.value">
                                                 </div>
                                                 <div class="style-control-row">
-                                                    <label>Text Color</label>
+                                                    <label>Information</label>
                                                     <input type="color"
-                                                           :value="ungroupedStyle.textColor"
-                                                           @input="ungroupedStyle.textColor = $event.target.value">
+                                                           :value="ungroupedStyle.information"
+                                                           @input="ungroupedStyle.information = $event.target.value">
+                                                </div>
+                                                <div class="style-control-row">
+                                                    <label>Trigger</label>
+                                                    <input type="color"
+                                                           :value="ungroupedStyle.trigger"
+                                                           @input="ungroupedStyle.trigger = $event.target.value">
                                                 </div>
                                             </div>
                                         </div>
