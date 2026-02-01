@@ -5,27 +5,6 @@
  * Profile format based on: https://github.com/data-enabler/streamdeck-profile-generator
  */
 
-// Domain color defaults
-const DOMAIN_COLORS = {
-    light: '#FFEB3B',
-    switch: '#4CAF50',
-    climate: '#2196F3',
-    media_player: '#9C27B0',
-    sensor: '#9E9E9E',
-    cover: '#FF9800',
-    fan: '#00BCD4',
-    binary_sensor: '#607D8B',
-    automation: '#FF5722',
-    script: '#795548',
-    scene: '#E91E63',
-    input_boolean: '#8BC34A',
-    input_number: '#3F51B5',
-    input_select: '#009688',
-    lock: '#F44336',
-    vacuum: '#673AB7',
-    camera: '#00BCD4',
-};
-
 // Entity categories for theming
 const ENTITY_CATEGORIES = {
     controllable: [
@@ -296,7 +275,6 @@ function styleEditor() {
         generatedProfile: null,
 
         // Theming
-        domainColors: { ...DOMAIN_COLORS },
         theme: {
             background: '#1a1a2e',
             backButtonPosition: 'bottom-right', // Legacy, keep for compatibility
@@ -759,14 +737,6 @@ function styleEditor() {
             const page = this.pages[pageIndex];
             if (!page || !page.layout[row]) return null;
             return page.layout[row][col];
-        },
-
-        getEntityStyle(entity) {
-            if (!entity) return {};
-            const color = this.domainColors[entity.domain] || '#888888';
-            return {
-                borderTop: `3px solid ${color}`
-            };
         },
 
         getEntityIcon(entity) {
@@ -2339,7 +2309,6 @@ function styleEditor() {
                     },
                     pages: pages,
                     theme: this.theme,
-                    domainColors: this.domainColors,
                     groupStyles: this.groupStyles,
                     ungroupedStyle: this.ungroupedStyle,
                     blankTitles: true // Tell generator to leave Stream Deck titles blank
