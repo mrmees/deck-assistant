@@ -261,19 +261,24 @@
                             <div class="theme-section-title">Presets</div>
                             <div class="theme-presets">
                                 <button class="theme-preset-btn"
-                                        :class="{ active: currentPreset === 'dark' }"
-                                        @click="applyPreset('dark')">
-                                    Stream Deck Dark
+                                        :class="{ active: currentPreset === 'modern' }"
+                                        @click="applyPreset('modern')">
+                                    Modern
                                 </button>
                                 <button class="theme-preset-btn"
-                                        :class="{ active: currentPreset === 'blue' }"
-                                        @click="applyPreset('blue')">
-                                    Home Assistant Blue
+                                        :class="{ active: currentPreset === 'classic' }"
+                                        @click="applyPreset('classic')">
+                                    Classic
                                 </button>
                                 <button class="theme-preset-btn"
                                         :class="{ active: currentPreset === 'minimal' }"
                                         @click="applyPreset('minimal')">
-                                    Minimal White
+                                    Minimal
+                                </button>
+                                <button class="theme-preset-btn"
+                                        :class="{ active: currentPreset === 'vibrant' }"
+                                        @click="applyPreset('vibrant')">
+                                    Vibrant
                                 </button>
                             </div>
                         </div>

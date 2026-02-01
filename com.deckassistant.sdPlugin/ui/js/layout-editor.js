@@ -3378,27 +3378,55 @@ function styleEditor() {
         },
 
         /**
-         * Apply a theme preset to a specific group
+         * Apply a theme preset to a specific group or all groups
+         * @param {string} presetName - The preset name (modern, classic, minimal, vibrant)
+         * @param {string} [groupName] - Optional group name. If omitted, applies to all groups and ungrouped.
+         *                               Use '__ungrouped__' for ungrouped entities only.
          */
         applyPreset(presetName, groupName) {
             const preset = this.themePresets[presetName];
             if (!preset) return;
 
             if (groupName === '__ungrouped__') {
+                // Apply to ungrouped only
                 this.ungroupedStyle = {
                     background: preset.background,
                     onOff: preset.onOff,
                     information: preset.information,
                     trigger: preset.trigger
                 };
-            } else {
+            } else if (groupName) {
+                // Apply to specific group
                 this.groupStyles[groupName] = {
                     background: preset.background,
                     onOff: preset.onOff,
                     information: preset.information,
                     trigger: preset.trigger
                 };
+            } else {
+                // Apply to ALL groups and ungrouped (global apply)
+                this.currentPreset = presetName;
+
+                for (const group of this.wizardSelections.groups || []) {
+                    this.groupStyles[group.name] = {
+                        background: preset.background,
+                        onOff: preset.onOff,
+                        information: preset.information,
+                        trigger: preset.trigger
+                    };
+                }
+
+                this.ungroupedStyle = {
+                    background: preset.background,
+                    onOff: preset.onOff,
+                    information: preset.information,
+                    trigger: preset.trigger
+                };
+
+                this.theme.backgroundColor = preset.background;
             }
+
+            this.refreshPreviewPages();
         }
     };
 }
