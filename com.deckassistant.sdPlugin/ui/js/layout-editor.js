@@ -153,6 +153,7 @@ function layoutEditor() {
         // Wizard
         showWizard: false,
         wizardStep: 0,
+        wizardEntitySearch: '', // Search filter for entity lists
         wizardSelections: {
             approach: 'groups', // 'groups' or 'simple'
             groupType: 'area', // 'area', 'domain', 'custom'
@@ -756,6 +757,8 @@ function layoutEditor() {
             const index = this.getWizardStepIndex(stepId);
             if (index !== -1) {
                 this.wizardStep = index;
+                // Clear entity search when changing steps
+                this.wizardEntitySearch = '';
             }
         },
 
@@ -788,16 +791,16 @@ function layoutEditor() {
                     return [];
 
                 case 'group-entities':
-                    // Filter entities based on groupType and groupFilter
-                    return this.getFilteredEntitiesForGroup().map(e => ({
+                    // Filter entities based on groupType and groupFilter, then apply search
+                    return this.filterEntitiesBySearch(this.getFilteredEntitiesForGroup()).map(e => ({
                         id: e.entity_id,
                         name: e.friendly_name || e.entity_id,
-                        subtitle: e.entity_id
+                        subtitle: `${this.formatDomainName(e.domain)} • ${this.getAreaName(e.area_id) || 'No area'}`
                     }));
 
                 case 'simple-entities':
-                    // Show all entities for simple flow
-                    return this.allEntities.map(e => ({
+                    // Show all entities for simple flow, filtered by search
+                    return this.filterEntitiesBySearch(this.allEntities).map(e => ({
                         id: e.entity_id,
                         name: e.friendly_name || e.entity_id,
                         subtitle: `${this.formatDomainName(e.domain)} • ${this.getAreaName(e.area_id) || 'No area'}`
@@ -809,6 +812,27 @@ function layoutEditor() {
                 default:
                     return [];
             }
+        },
+
+        /**
+         * Filter entities by search term (searches name, ID, area, domain)
+         */
+        filterEntitiesBySearch(entities) {
+            const search = this.wizardEntitySearch.toLowerCase().trim();
+            if (!search) return entities;
+
+            return entities.filter(e => {
+                // Search in entity ID
+                if (e.entity_id.toLowerCase().includes(search)) return true;
+                // Search in friendly name
+                if ((e.friendly_name || '').toLowerCase().includes(search)) return true;
+                // Search in domain (formatted)
+                if (this.formatDomainName(e.domain).toLowerCase().includes(search)) return true;
+                // Search in area name
+                const areaName = this.getAreaName(e.area_id) || '';
+                if (areaName.toLowerCase().includes(search)) return true;
+                return false;
+            });
         },
 
         /**

@@ -403,18 +403,33 @@
 
                         <!-- Multi-select Steps (group-entities, simple-entities) -->
                         <template x-if="wizardSteps[wizardStep].type === 'multiselect'">
-                            <div class="wizard-options wizard-scrollable">
-                                <template x-for="option in getWizardOptions()" :key="option.id">
-                                    <div class="wizard-option"
-                                         :class="{ selected: isWizardOptionSelected(option.id) }"
-                                         @click="toggleWizardOption(option.id)">
-                                        <input type="checkbox" :checked="isWizardOptionSelected(option.id)">
-                                        <div class="wizard-option-content">
-                                            <span class="wizard-option-name" x-text="option.name"></span>
-                                            <span class="wizard-option-subtitle" x-text="option.subtitle" x-show="option.subtitle"></span>
+                            <div class="wizard-entity-select">
+                                <!-- Search box for entity steps -->
+                                <div class="wizard-search">
+                                    <input type="text"
+                                           class="wizard-search-input"
+                                           placeholder="Search by name, area, or device type..."
+                                           x-model="wizardEntitySearch">
+                                    <span class="wizard-search-icon">🔍</span>
+                                </div>
+                                <div class="wizard-options wizard-scrollable">
+                                    <template x-for="option in getWizardOptions()" :key="option.id">
+                                        <div class="wizard-option"
+                                             :class="{ selected: isWizardOptionSelected(option.id) }"
+                                             @click="toggleWizardOption(option.id)">
+                                            <input type="checkbox" :checked="isWizardOptionSelected(option.id)">
+                                            <div class="wizard-option-content">
+                                                <span class="wizard-option-name" x-text="option.name"></span>
+                                                <span class="wizard-option-subtitle" x-text="option.subtitle" x-show="option.subtitle"></span>
+                                            </div>
                                         </div>
-                                    </div>
-                                </template>
+                                    </template>
+                                    <template x-if="getWizardOptions().length === 0">
+                                        <div class="wizard-no-results">
+                                            No entities match your search
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </template>
 
