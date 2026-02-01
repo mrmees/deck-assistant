@@ -9,19 +9,29 @@ import { v4 as uuidv4 } from "uuid";
 import JSZip from "jszip";
 
 interface EntityData {
-    entity_id: string;
-    domain: string;
+    entity_id?: string;
+    domain?: string;
     friendly_name?: string;
     area_id?: string;
-    isFolder?: boolean;
-    name?: string;
+    type?: 'entity' | 'folder' | 'nav-next' | 'nav-prev' | 'folder-up' | 'empty';
+    icon?: string;
+    label?: string;
+    groupName?: string;
     targetPageId?: string;
+    style?: {
+        backgroundColor?: string;
+        iconColor?: string;
+        textColor?: string;
+    };
 }
 
 interface PageData {
     id: string;
     name: string;
+    type: 'main' | 'overflow' | 'page-group' | 'folder-sub';
     layout: (EntityData | null)[][];
+    groupName?: string;
+    parentId?: string;
 }
 
 interface ThemeConfig {
@@ -74,13 +84,22 @@ function profileFolderId(profileId: string): string {
  * Generate a Stream Deck profile ZIP archive from configuration
  */
 export async function generateProfile(config: ProfileConfig): Promise<{ data: string; filename: string }> {
-    const mainProfileUuid = uuidv4();
     const safeFilename = config.name.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_');
 
     // Create ZIP archive
     const zip = new JSZip();
 
-    // Create the .sdProfile folder inside the ZIP (named after UUID)
+    // Generate UUIDs for each page
+    const pageUuids: Record<string, string> = {};
+    for (const page of config.pages) {
+        pageUuids[page.id] = uuidv4();
+    }
+
+    // Use the main page UUID as the profile UUID
+    const mainPage = config.pages.find(p => p.type === 'main') || config.pages[0];
+    const mainProfileUuid = mainPage ? pageUuids[mainPage.id] : uuidv4();
+
+    // Create the .sdProfile folder
     const profileFolderName = `${mainProfileUuid}.sdProfile`;
     const profileFolder = zip.folder(profileFolderName);
 
@@ -88,58 +107,118 @@ export async function generateProfile(config: ProfileConfig): Promise<{ data: st
         throw new Error("Failed to create profile folder in ZIP");
     }
 
-    // Build actions for the main page
-    const actions: Record<string, ProfileAction> = {};
+    const profilesFolder = profileFolder.folder("Profiles");
 
-    // Only use the first page for now (multi-page support can be added later)
-    const mainPage = config.pages[0];
-    if (mainPage) {
+    // Build each page
+    for (let pageIndex = 0; pageIndex < config.pages.length; pageIndex++) {
+        const page = config.pages[pageIndex];
+        const pageUuid = pageUuids[page.id];
+        const encodedFolderId = profileFolderId(pageUuid);
+        const pageFolder = profilesFolder?.folder(encodedFolderId);
+
+        if (!pageFolder) continue;
+
+        const actions: Record<string, ProfileAction> = {};
+
+        // Process each cell in the layout
         for (let row = 0; row < config.device.rows; row++) {
             for (let col = 0; col < config.device.cols; col++) {
-                const entity = mainPage.layout[row]?.[col];
-                if (entity) {
-                    const position = `${col},${row}`;
-                    actions[position] = createEntityButtonAction(entity, config.domainColors, config.theme);
+                const cell = page.layout[row]?.[col];
+                if (!cell) continue;
+
+                const position = `${col},${row}`;
+
+                if (cell.type === 'entity' && cell.entity_id) {
+                    actions[position] = createEntityButtonAction(cell, config.domainColors, config.theme);
+                } else if (cell.type === 'folder') {
+                    // Find target folder page
+                    const targetPage = config.pages.find(p =>
+                        p.type === 'folder-sub' && p.groupName === cell.groupName
+                    );
+                    if (targetPage) {
+                        actions[position] = createNavigationAction(
+                            cell.label || cell.groupName || 'Folder',
+                            pageUuids[targetPage.id]
+                        );
+                    }
+                } else if (cell.type === 'nav-next') {
+                    // Find next page in sequence
+                    let nextPage: PageData | undefined;
+                    if (page.type === 'folder-sub') {
+                        // Navigate within folder
+                        const folderPages = config.pages.filter(p =>
+                            p.type === 'folder-sub' && p.groupName === page.groupName
+                        );
+                        const currentIndex = folderPages.indexOf(page);
+                        nextPage = folderPages[currentIndex + 1];
+                    } else {
+                        // Linear navigation (skip folder-sub pages)
+                        for (let i = pageIndex + 1; i < config.pages.length; i++) {
+                            if (config.pages[i].type !== 'folder-sub') {
+                                nextPage = config.pages[i];
+                                break;
+                            }
+                        }
+                    }
+                    if (nextPage) {
+                        actions[position] = createNavigationAction('→', pageUuids[nextPage.id]);
+                    }
+                } else if (cell.type === 'nav-prev') {
+                    // Find previous page in sequence
+                    let prevPage: PageData | undefined;
+                    if (page.type === 'folder-sub') {
+                        // Navigate within folder
+                        const folderPages = config.pages.filter(p =>
+                            p.type === 'folder-sub' && p.groupName === page.groupName
+                        );
+                        const currentIndex = folderPages.indexOf(page);
+                        prevPage = currentIndex > 0 ? folderPages[currentIndex - 1] : undefined;
+                    } else {
+                        // Linear navigation (skip folder-sub pages)
+                        for (let i = pageIndex - 1; i >= 0; i--) {
+                            if (config.pages[i].type !== 'folder-sub') {
+                                prevPage = config.pages[i];
+                                break;
+                            }
+                        }
+                    }
+                    if (prevPage) {
+                        actions[position] = createNavigationAction('←', pageUuids[prevPage.id]);
+                    }
+                } else if (cell.type === 'folder-up') {
+                    // Go back to main page
+                    if (mainPage) {
+                        actions[position] = createNavigationAction('↑', pageUuids[mainPage.id]);
+                    }
                 }
             }
         }
-    }
 
-    // Add "Back to Default" button at the configured position
-    const backButtonPos = getBackButtonPosition(
-        config.theme.backButtonPosition,
-        config.device.cols,
-        config.device.rows
-    );
-    actions[backButtonPos] = createBackToDefaultAction();
-
-    // Create the profile manifest (goes in Profiles/<encoded-uuid>/manifest.json)
-    const profilesFolder = profileFolder.folder("Profiles");
-    const encodedFolderId = profileFolderId(mainProfileUuid);
-    const profileUuidFolder = profilesFolder?.folder(encodedFolderId);
-
-    if (!profileUuidFolder) {
-        throw new Error("Failed to create profile UUID folder in ZIP");
-    }
-
-    // Profile manifest - note Controllers is an ARRAY
-    const profileManifest = {
-        Controllers: [
-            {
-                Actions: actions,
-                Type: "Keypad"
+        // Add "Back to Default" on main page only
+        if (page.type === 'main') {
+            const backButtonPos = getBackButtonPosition(
+                config.theme.backButtonPosition,
+                config.device.cols,
+                config.device.rows
+            );
+            // Only add if position isn't already occupied
+            if (!actions[backButtonPos]) {
+                actions[backButtonPos] = createBackToDefaultAction();
             }
-        ]
-    };
+        }
 
-    profileUuidFolder.file("manifest.json", JSON.stringify(profileManifest, null, 2));
+        const pageManifest = {
+            Controllers: [{ Actions: actions, Type: "Keypad" }]
+        };
+        pageFolder.file("manifest.json", JSON.stringify(pageManifest, null, 2));
+    }
 
-    // Top-level manifest
+    // Top-level manifest with all pages
     const topLevelManifest = {
         Name: config.name,
         Pages: {
             Current: mainProfileUuid,
-            Pages: [mainProfileUuid]
+            Pages: Object.values(pageUuids)
         },
         Version: "2.0"
     };
@@ -157,6 +236,27 @@ export async function generateProfile(config: ProfileConfig): Promise<{ data: st
 }
 
 /**
+ * Create a navigation action to switch pages
+ */
+function createNavigationAction(label: string, targetProfileUuid: string): ProfileAction {
+    return {
+        Name: label,
+        Settings: {
+            ProfileUUID: targetProfileUuid
+        },
+        State: 0,
+        States: [
+            {
+                Title: label,
+                TitleAlignment: "middle",
+                ShowTitle: true
+            }
+        ],
+        UUID: "com.elgato.streamdeck.profile.openchild"
+    };
+}
+
+/**
  * Create an Entity Button action
  */
 function createEntityButtonAction(
@@ -164,18 +264,20 @@ function createEntityButtonAction(
     domainColors: Record<string, string>,
     theme: ThemeConfig
 ): ProfileAction {
-    const iconColor = domainColors[entity.domain] || '#888888';
-    const friendlyName = entity.friendly_name || entity.entity_id;
+    const domain = entity.domain || 'unknown';
+    const iconColor = entity.style?.iconColor || domainColors[domain] || '#888888';
+    const backgroundColor = entity.style?.backgroundColor || theme.backgroundColor;
+    const friendlyName = entity.friendly_name || entity.label || entity.entity_id || 'Entity';
 
     return {
         Name: friendlyName,
         Settings: {
             entityId: entity.entity_id,
-            domain: entity.domain,
+            domain: domain,
             friendlyName: friendlyName,
             iconSource: "domain",
             iconColor: iconColor,
-            backgroundColor: theme.backgroundColor,
+            backgroundColor: backgroundColor,
             showTitle: true,
             showState: true
         },
