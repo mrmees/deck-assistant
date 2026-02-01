@@ -1160,16 +1160,13 @@ function layoutEditor() {
             this.groups = finalGroups;
             this.selectedEntities = finalGroups.flatMap(g => g.entities);
 
-            // Close wizard and show layout
+            // Close wizard and show layout editor with entities placed
             this.showWizard = false;
             this.wizardComplete = true;
             this.mode = 'freeform';
             this.autoLayout();
 
-            // Offer to generate profile
-            if (this.selectedEntities.length > 0) {
-                this.showProfileNameModal = true;
-            }
+            // User can now review/edit the layout and click "Generate Profile" when ready
         },
 
         async saveGroupLabels(groups) {
