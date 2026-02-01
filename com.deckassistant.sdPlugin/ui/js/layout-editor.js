@@ -341,6 +341,8 @@ function styleEditor() {
         wizardHideUnavailable: true, // Filter to hide disabled/unavailable entities (default on)
         groupDragIndex: null, // Index of group being dragged
         groupDragOverIndex: null, // Index of group being dragged over
+        draggedLayoutItem: null, // Layout item being dragged
+        draggedPageItem: null, // Page group being dragged
         wizardSelections: {
             startChoice: 'wizard', // 'wizard' or 'manual'
             approach: 'groups', // 'groups' or 'simple'
@@ -2036,16 +2038,204 @@ function styleEditor() {
         },
 
         /**
-         * Update a group's display type
+         * Get items for main layout section (folders, flats, ungrouped) in sort order
          */
-        setGroupDisplayType(groupIndex, displayType) {
-            if (this.wizardSelections.groups[groupIndex]) {
-                this.wizardSelections.groups[groupIndex].displayType = displayType;
+        getMainLayoutItems() {
+            const items = [];
+            const groups = this.wizardSelections.groups || [];
+
+            // Get non-page groups
+            const mainGroups = groups
+                .filter(g => g.displayType !== 'page')
+                .map(g => ({
+                    type: 'group',
+                    id: g.name,
+                    name: g.name,
+                    displayType: g.displayType,
+                    startNewRow: g.startNewRow || false,
+                    entities: g.entities
+                }));
+
+            // Create ungrouped item
+            const ungroupedItem = {
+                type: 'ungrouped',
+                id: '__ungrouped__',
+                name: 'Ungrouped Items',
+                displayType: 'flat',
+                startNewRow: false,
+                entities: this.wizardSelections.ungroupedEntities || []
+            };
+
+            // Determine ungrouped position
+            const ungroupedPos = this.wizardSelections.ungroupedPosition;
+
+            if (ungroupedPos === null || ungroupedPos === undefined || ungroupedPos >= mainGroups.length) {
+                // Ungrouped at end
+                items.push(...mainGroups, ungroupedItem);
+            } else {
+                // Insert ungrouped at specified position
+                mainGroups.splice(ungroupedPos, 0, ungroupedItem);
+                items.push(...mainGroups);
+            }
+
+            return items;
+        },
+
+        /**
+         * Get page-type groups
+         */
+        getPageGroups() {
+            return (this.wizardSelections.groups || [])
+                .filter(g => g.displayType === 'page');
+        },
+
+        /**
+         * Update a group's display type by name
+         */
+        setGroupDisplayType(groupName, displayType) {
+            const group = this.wizardSelections.groups.find(g => g.name === groupName);
+            if (!group) return;
+
+            group.displayType = displayType;
+
+            // Clear startNewRow if not flat
+            if (displayType !== 'flat') {
+                group.startNewRow = false;
+            }
+
+            // Refresh preview
+            this.refreshPreviewPages();
+        },
+
+        /**
+         * Set startNewRow for a flat group
+         */
+        setGroupStartNewRow(groupName, startNewRow) {
+            const group = this.wizardSelections.groups.find(g => g.name === groupName);
+            if (group && group.displayType === 'flat') {
+                group.startNewRow = startNewRow;
+                this.refreshPreviewPages();
             }
         },
 
         /**
-         * Handle group drag start
+         * Handle drag start for layout items
+         */
+        handleLayoutDragStart(event, item) {
+            this.draggedLayoutItem = item;
+            event.dataTransfer.effectAllowed = 'move';
+        },
+
+        /**
+         * Handle drag over for layout items
+         */
+        handleLayoutDragOver(event, targetItem) {
+            if (!this.draggedLayoutItem || this.draggedLayoutItem.id === targetItem.id) return;
+            event.preventDefault();
+        },
+
+        /**
+         * Handle drop for layout items
+         */
+        handleLayoutDrop(event, targetItem) {
+            if (!this.draggedLayoutItem || this.draggedLayoutItem.id === targetItem.id) return;
+            event.preventDefault();
+
+            const items = this.getMainLayoutItems();
+            const fromIndex = items.findIndex(i => i.id === this.draggedLayoutItem.id);
+            const toIndex = items.findIndex(i => i.id === targetItem.id);
+
+            if (fromIndex === -1 || toIndex === -1) return;
+
+            // Reorder the actual data
+            this.reorderMainLayoutItems(fromIndex, toIndex);
+
+            this.draggedLayoutItem = null;
+            this.refreshPreviewPages();
+        },
+
+        /**
+         * Reorder main layout items
+         */
+        reorderMainLayoutItems(fromIndex, toIndex) {
+            const items = this.getMainLayoutItems();
+            const movedItem = items[fromIndex];
+
+            // Build new order of group names (excluding ungrouped)
+            const newGroupOrder = [];
+            let newUngroupedPosition = null;
+
+            // Remove item from old position, insert at new position
+            items.splice(fromIndex, 1);
+            items.splice(toIndex, 0, movedItem);
+
+            // Rebuild group order and ungrouped position
+            items.forEach((item, index) => {
+                if (item.type === 'ungrouped') {
+                    newUngroupedPosition = index;
+                } else {
+                    newGroupOrder.push(item.id);
+                }
+            });
+
+            // Reorder groups array to match
+            const groups = this.wizardSelections.groups;
+            const nonPageGroups = groups.filter(g => g.displayType !== 'page');
+            const pageGroups = groups.filter(g => g.displayType === 'page');
+
+            const reorderedNonPage = newGroupOrder.map(name =>
+                nonPageGroups.find(g => g.name === name)
+            ).filter(Boolean);
+
+            this.wizardSelections.groups = [...reorderedNonPage, ...pageGroups];
+            this.wizardSelections.ungroupedPosition = newUngroupedPosition;
+        },
+
+        /**
+         * Handle drag start for page groups
+         */
+        handlePageDragStart(event, group) {
+            this.draggedPageItem = group;
+            event.dataTransfer.effectAllowed = 'move';
+        },
+
+        /**
+         * Handle drag over for page groups
+         */
+        handlePageDragOver(event, targetGroup) {
+            if (!this.draggedPageItem || this.draggedPageItem.name === targetGroup.name) return;
+            event.preventDefault();
+        },
+
+        /**
+         * Handle drop for page groups
+         */
+        handlePageDrop(event, targetGroup) {
+            if (!this.draggedPageItem || this.draggedPageItem.name === targetGroup.name) return;
+            event.preventDefault();
+
+            const pageGroups = this.getPageGroups();
+            const fromIndex = pageGroups.findIndex(g => g.name === this.draggedPageItem.name);
+            const toIndex = pageGroups.findIndex(g => g.name === targetGroup.name);
+
+            if (fromIndex === -1 || toIndex === -1) return;
+
+            // Find in main groups array and reorder page groups only
+            const groups = this.wizardSelections.groups;
+            const pageGroupsInOrder = groups.filter(g => g.displayType === 'page');
+            const movedGroup = pageGroupsInOrder.splice(fromIndex, 1)[0];
+            pageGroupsInOrder.splice(toIndex, 0, movedGroup);
+
+            // Rebuild groups: non-page groups + reordered page groups
+            const nonPageGroups = groups.filter(g => g.displayType !== 'page');
+            this.wizardSelections.groups = [...nonPageGroups, ...pageGroupsInOrder];
+
+            this.draggedPageItem = null;
+            this.refreshPreviewPages();
+        },
+
+        /**
+         * Handle group drag start (legacy - for backward compatibility)
          */
         handleGroupDragStart(event, index) {
             this.groupDragIndex = index;
@@ -2054,7 +2244,7 @@ function styleEditor() {
         },
 
         /**
-         * Handle group drag end
+         * Handle group drag end (legacy)
          */
         handleGroupDragEnd() {
             this.groupDragIndex = null;
@@ -2062,7 +2252,7 @@ function styleEditor() {
         },
 
         /**
-         * Handle group drag over
+         * Handle group drag over (legacy)
          */
         handleGroupDragOver(event, index) {
             if (this.groupDragIndex !== null && this.groupDragIndex !== index) {
@@ -2071,14 +2261,14 @@ function styleEditor() {
         },
 
         /**
-         * Handle group drag leave
+         * Handle group drag leave (legacy)
          */
         handleGroupDragLeave() {
             this.groupDragOverIndex = null;
         },
 
         /**
-         * Handle group drop - reorder groups
+         * Handle group drop - reorder groups (legacy)
          */
         handleGroupDrop(event, targetIndex) {
             event.preventDefault();
