@@ -361,7 +361,7 @@
 
                         <!-- Choice Steps (approach, group-type, group-complete, layout) -->
                         <template x-if="wizardSteps[wizardStep].type === 'choice' && wizardSteps[wizardStep].id !== 'group-complete'">
-                            <div class="wizard-options">
+                            <div class="wizard-options wizard-scrollable">
                                 <template x-for="option in getWizardOptions()" :key="option.id">
                                     <div class="wizard-option wizard-option-large"
                                          :class="{ selected: isWizardOptionSelected(option.id) }"

@@ -682,15 +682,19 @@ body {
     padding: 32px;
     width: 500px;
     max-width: 90vw;
-    max-height: 80vh;
+    max-height: 85vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .wizard-step {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
 }
 
 .wizard-progress {
@@ -809,12 +813,15 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    flex: 1;
+    min-height: 0;
 }
 
 .wizard-scrollable {
-    max-height: 300px;
+    max-height: 280px;
     overflow-y: auto;
     padding-right: 8px;
+    margin-bottom: 8px;
 }
 
 .wizard-option {
