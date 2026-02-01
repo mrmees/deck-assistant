@@ -154,10 +154,13 @@ function layoutEditor() {
         showWizard: false,
         wizardStep: 0,
         wizardSelections: {
-            areas: [],
-            domains: [],
-            entities: [],
-            grouping: 'by-area'
+            approach: 'groups', // 'groups' or 'simple'
+            groupType: 'area', // 'area', 'domain', 'custom'
+            currentGroupEntities: [],
+            currentGroupName: '',
+            groups: [], // Array of { name, entities: [] }
+            simpleEntities: [], // For simple flow
+            layoutStyle: 'groups-as-folders' // 'groups-as-folders', 'groups-as-pages', 'flat'
         },
         wizardSteps: [
             {
@@ -167,38 +170,75 @@ function layoutEditor() {
                 type: 'info'
             },
             {
-                id: 'areas',
-                title: 'Select Areas',
-                subtitle: 'Which rooms do you want to control?',
-                type: 'multiselect'
-            },
-            {
-                id: 'domains',
-                title: 'Select Device Types',
-                subtitle: 'What kinds of devices in those areas?',
-                type: 'multiselect'
-            },
-            {
-                id: 'entities',
-                title: 'Select Entities',
-                subtitle: 'Choose the specific devices to include.',
-                type: 'multiselect'
-            },
-            {
-                id: 'grouping',
-                title: 'Organize Layout',
-                subtitle: 'How should entities be grouped?',
+                id: 'approach',
+                title: 'How would you like to organize?',
+                subtitle: 'Choose your configuration approach.',
                 type: 'choice',
                 options: [
-                    { id: 'by-area', name: 'By Room/Area', description: 'Group entities by their Home Assistant area' },
-                    { id: 'by-domain', name: 'By Device Type', description: 'Group lights together, switches together, etc.' },
-                    { id: 'flat', name: 'No Grouping', description: 'All entities on a single page' }
+                    { id: 'groups', name: 'Define Groups First', description: 'Create organized groups (by room, device type, or custom) then arrange them' },
+                    { id: 'simple', name: 'Quick Setup', description: 'Just select entities and auto-organize by area' }
+                ]
+            },
+            {
+                id: 'group-type',
+                title: 'What defines this group?',
+                subtitle: 'Choose how to filter entities for this group.',
+                type: 'choice',
+                options: [
+                    { id: 'area', name: 'By Area/Room', description: 'Select all entities from a specific area' },
+                    { id: 'domain', name: 'By Device Type', description: 'Select all lights, switches, etc.' },
+                    { id: 'custom', name: 'Custom Selection', description: 'Pick any entities you want' }
+                ]
+            },
+            {
+                id: 'group-filter',
+                title: 'Select Filter',
+                subtitle: 'Choose which area or device type.',
+                type: 'choice'
+            },
+            {
+                id: 'group-entities',
+                title: 'Select Entities',
+                subtitle: 'Choose entities for this group.',
+                type: 'multiselect'
+            },
+            {
+                id: 'group-name',
+                title: 'Name This Group',
+                subtitle: 'Give your group a descriptive name.',
+                type: 'input'
+            },
+            {
+                id: 'group-complete',
+                title: 'Group Created!',
+                subtitle: 'Would you like to create another group?',
+                type: 'choice',
+                options: [
+                    { id: 'another', name: 'Add Another Group', description: 'Create another group of entities' },
+                    { id: 'done', name: 'Done Adding Groups', description: 'Proceed to layout configuration' }
+                ]
+            },
+            {
+                id: 'simple-entities',
+                title: 'Select Entities',
+                subtitle: 'Choose all entities you want on your Stream Deck.',
+                type: 'multiselect'
+            },
+            {
+                id: 'layout',
+                title: 'Page Layout',
+                subtitle: 'How should groups appear on your Stream Deck?',
+                type: 'choice',
+                options: [
+                    { id: 'groups-as-folders', name: 'Groups as Folders', description: 'Main page with folder buttons, each group on its own sub-page' },
+                    { id: 'groups-as-pages', name: 'Groups as Pages', description: 'Each group gets its own top-level page' },
+                    { id: 'flat', name: 'All on One Page', description: 'No grouping, all entities together' }
                 ]
             },
             {
                 id: 'confirm',
-                title: 'Ready to Configure',
-                subtitle: 'We\'ll save these preferences to Home Assistant labels.',
+                title: 'Ready to Generate',
+                subtitle: 'Review your configuration.',
                 type: 'confirm'
             }
         ],
@@ -350,6 +390,8 @@ function layoutEditor() {
                     this.connected = true;
                     this.loading = false;
                     this.status = 'Ready';
+                    // Check if wizard should auto-start
+                    this.checkAutoStartWizard();
                     break;
 
                 case 'areasData':
@@ -361,14 +403,8 @@ function layoutEditor() {
                     this.entitiesWithLabels = payload.entitiesWithLabels || [];
                     // Check if this is a first-time user (no deck-assistant labels exist)
                     this.isFirstTimeUser = this.entitiesWithLabels.length === 0;
-
-                    // Auto-start wizard for first-time users after all data is loaded
-                    if (this.isFirstTimeUser && !this.loading && !this.showWizard && !this.wizardComplete) {
-                        // Small delay to let UI settle
-                        setTimeout(() => {
-                            this.startWizard();
-                        }, 500);
-                    }
+                    // Check if wizard should auto-start
+                    this.checkAutoStartWizard();
                     break;
 
                 case 'labelCreated':
@@ -664,15 +700,63 @@ function layoutEditor() {
 
         // ========== Wizard ==========
 
+        /**
+         * Check if wizard should auto-start for first-time users
+         * Called after both entitiesData and labelsData are received
+         */
+        checkAutoStartWizard() {
+            console.log('checkAutoStartWizard:', {
+                loading: this.loading,
+                isFirstTimeUser: this.isFirstTimeUser,
+                showWizard: this.showWizard,
+                wizardComplete: this.wizardComplete,
+                entitiesCount: this.allEntities.length
+            });
+
+            // Need all data loaded, must be first-time user, wizard not already showing/completed
+            if (!this.loading &&
+                this.isFirstTimeUser &&
+                !this.showWizard &&
+                !this.wizardComplete &&
+                this.allEntities.length > 0) {
+                console.log('Auto-starting wizard for first-time user');
+                // Small delay to let UI settle
+                setTimeout(() => {
+                    this.startWizard();
+                }, 300);
+            }
+        },
+
         startWizard() {
             this.showWizard = true;
             this.wizardStep = 0;
             this.wizardSelections = {
-                areas: [],
-                domains: [],
-                entities: [],
-                grouping: 'by-area'
+                approach: 'groups',
+                groupType: 'area',
+                groupFilter: null, // Selected area or domain for filtering
+                currentGroupEntities: [],
+                currentGroupName: '',
+                groups: [],
+                simpleEntities: [],
+                layoutStyle: 'groups-as-folders'
             };
+        },
+
+        /**
+         * Get wizard step by ID
+         */
+        getWizardStepIndex(stepId) {
+            return this.wizardSteps.findIndex(s => s.id === stepId);
+        },
+
+        /**
+         * Go to a specific wizard step by ID
+         */
+        goToWizardStep(stepId) {
+            const index = this.getWizardStepIndex(stepId);
+            if (index !== -1) {
+                this.wizardStep = index;
+            }
         },
 
         getWizardOptions() {
@@ -682,53 +766,42 @@ function layoutEditor() {
                 case 'welcome':
                     return [];
 
-                case 'areas':
-                    // Include "Unassigned" for entities without area
-                    const areaOptions = this.areas.map(a => ({ id: a.area_id, name: a.name }));
-                    const hasUnassigned = this.allEntities.some(e => !e.area_id);
-                    if (hasUnassigned) {
-                        areaOptions.push({ id: '__unassigned__', name: 'Unassigned (no area)' });
-                    }
-                    return areaOptions;
-
-                case 'domains':
-                    // Only show domains that exist in selected areas
-                    const selectedAreas = this.wizardSelections.areas;
-                    const relevantEntities = this.allEntities.filter(e => {
-                        if (selectedAreas.length === 0) return true;
-                        if (selectedAreas.includes('__unassigned__') && !e.area_id) return true;
-                        return selectedAreas.includes(e.area_id);
-                    });
-                    const domains = [...new Set(relevantEntities.map(e => e.domain))].sort();
-                    return domains.map(d => ({ id: d, name: this.formatDomainName(d) }));
-
-                case 'entities':
-                    // Filter by selected areas and domains
-                    return this.allEntities
-                        .filter(e => {
-                            // Area filter
-                            if (this.wizardSelections.areas.length > 0) {
-                                if (this.wizardSelections.areas.includes('__unassigned__') && !e.area_id) {
-                                    // Allow unassigned
-                                } else if (!this.wizardSelections.areas.includes(e.area_id)) {
-                                    return false;
-                                }
-                            }
-                            // Domain filter
-                            if (this.wizardSelections.domains.length > 0 &&
-                                !this.wizardSelections.domains.includes(e.domain)) {
-                                return false;
-                            }
-                            return true;
-                        })
-                        .map(e => ({
-                            id: e.entity_id,
-                            name: e.friendly_name || e.entity_id,
-                            subtitle: e.entity_id
-                        }));
-
-                case 'grouping':
+                case 'approach':
+                case 'group-type':
+                case 'group-complete':
+                case 'layout':
                     return currentStep.options;
+
+                case 'group-filter':
+                    // Show areas or domains based on groupType
+                    if (this.wizardSelections.groupType === 'area') {
+                        const areaOptions = this.areas.map(a => ({ id: a.area_id, name: a.name }));
+                        const hasUnassigned = this.allEntities.some(e => !e.area_id);
+                        if (hasUnassigned) {
+                            areaOptions.push({ id: '__unassigned__', name: 'Unassigned (no area)' });
+                        }
+                        return areaOptions;
+                    } else if (this.wizardSelections.groupType === 'domain') {
+                        const domains = [...new Set(this.allEntities.map(e => e.domain))].sort();
+                        return domains.map(d => ({ id: d, name: this.formatDomainName(d) }));
+                    }
+                    return [];
+
+                case 'group-entities':
+                    // Filter entities based on groupType and groupFilter
+                    return this.getFilteredEntitiesForGroup().map(e => ({
+                        id: e.entity_id,
+                        name: e.friendly_name || e.entity_id,
+                        subtitle: e.entity_id
+                    }));
+
+                case 'simple-entities':
+                    // Show all entities for simple flow
+                    return this.allEntities.map(e => ({
+                        id: e.entity_id,
+                        name: e.friendly_name || e.entity_id,
+                        subtitle: `${this.formatDomainName(e.domain)} • ${this.getAreaName(e.area_id) || 'No area'}`
+                    }));
 
                 case 'confirm':
                     return [];
@@ -736,6 +809,28 @@ function layoutEditor() {
                 default:
                     return [];
             }
+        },
+
+        /**
+         * Get entities filtered for current group creation
+         */
+        getFilteredEntitiesForGroup() {
+            const { groupType, groupFilter } = this.wizardSelections;
+
+            if (groupType === 'custom') {
+                // Show all entities for custom selection
+                return this.allEntities;
+            } else if (groupType === 'area') {
+                if (!groupFilter) return [];
+                return this.allEntities.filter(e => {
+                    if (groupFilter === '__unassigned__') return !e.area_id;
+                    return e.area_id === groupFilter;
+                });
+            } else if (groupType === 'domain') {
+                if (!groupFilter) return [];
+                return this.allEntities.filter(e => e.domain === groupFilter);
+            }
+            return [];
         },
 
         formatDomainName(domain) {
@@ -765,14 +860,20 @@ function layoutEditor() {
             const currentStep = this.wizardSteps[this.wizardStep];
 
             switch (currentStep.id) {
-                case 'areas':
-                    return this.wizardSelections.areas.includes(optionId);
-                case 'domains':
-                    return this.wizardSelections.domains.includes(optionId);
-                case 'entities':
-                    return this.wizardSelections.entities.includes(optionId);
-                case 'grouping':
-                    return this.wizardSelections.grouping === optionId;
+                case 'approach':
+                    return this.wizardSelections.approach === optionId;
+                case 'group-type':
+                    return this.wizardSelections.groupType === optionId;
+                case 'group-filter':
+                    return this.wizardSelections.groupFilter === optionId;
+                case 'group-entities':
+                    return this.wizardSelections.currentGroupEntities.includes(optionId);
+                case 'group-complete':
+                    return false; // No persistent selection
+                case 'simple-entities':
+                    return this.wizardSelections.simpleEntities.includes(optionId);
+                case 'layout':
+                    return this.wizardSelections.layoutStyle === optionId;
                 default:
                     return false;
             }
@@ -781,109 +882,273 @@ function layoutEditor() {
         toggleWizardOption(optionId) {
             const currentStep = this.wizardSteps[this.wizardStep];
 
-            if (currentStep.id === 'grouping') {
-                // Single selection for grouping
-                this.wizardSelections.grouping = optionId;
-                return;
-            }
-
-            let arr;
             switch (currentStep.id) {
-                case 'areas':
-                    arr = this.wizardSelections.areas;
+                case 'approach':
+                    this.wizardSelections.approach = optionId;
                     break;
-                case 'domains':
-                    arr = this.wizardSelections.domains;
+                case 'group-type':
+                    this.wizardSelections.groupType = optionId;
+                    // Reset filter when type changes
+                    this.wizardSelections.groupFilter = null;
                     break;
-                case 'entities':
-                    arr = this.wizardSelections.entities;
+                case 'group-filter':
+                    this.wizardSelections.groupFilter = optionId;
+                    // Auto-suggest group name based on filter
+                    if (this.wizardSelections.groupType === 'area') {
+                        const area = this.areas.find(a => a.area_id === optionId);
+                        this.wizardSelections.currentGroupName = area ? area.name : 'Unassigned';
+                    } else if (this.wizardSelections.groupType === 'domain') {
+                        this.wizardSelections.currentGroupName = this.formatDomainName(optionId);
+                    }
                     break;
-                default:
-                    return;
+                case 'group-entities':
+                    this.toggleArrayItem(this.wizardSelections.currentGroupEntities, optionId);
+                    break;
+                case 'simple-entities':
+                    this.toggleArrayItem(this.wizardSelections.simpleEntities, optionId);
+                    break;
+                case 'layout':
+                    this.wizardSelections.layoutStyle = optionId;
+                    break;
             }
+        },
 
-            const index = arr.indexOf(optionId);
+        /**
+         * Toggle an item in an array (add if not present, remove if present)
+         */
+        toggleArrayItem(arr, item) {
+            const index = arr.indexOf(item);
             if (index === -1) {
-                arr.push(optionId);
+                arr.push(item);
             } else {
                 arr.splice(index, 1);
             }
         },
 
         wizardBack() {
+            const currentStep = this.wizardSteps[this.wizardStep];
+
             if (this.wizardStep === 0) {
                 this.showWizard = false;
-            } else {
-                this.wizardStep--;
+                return;
+            }
+
+            // Handle back navigation based on current step
+            switch (currentStep.id) {
+                case 'group-type':
+                    // Back to approach
+                    this.goToWizardStep('approach');
+                    break;
+                case 'group-filter':
+                    // Back to group-type
+                    this.goToWizardStep('group-type');
+                    break;
+                case 'group-entities':
+                    // Back depends on group type
+                    if (this.wizardSelections.groupType === 'custom') {
+                        this.goToWizardStep('group-type');
+                    } else {
+                        this.goToWizardStep('group-filter');
+                    }
+                    break;
+                case 'group-name':
+                    this.goToWizardStep('group-entities');
+                    break;
+                case 'group-complete':
+                    this.goToWizardStep('group-name');
+                    break;
+                case 'simple-entities':
+                    this.goToWizardStep('approach');
+                    break;
+                case 'layout':
+                    // Back depends on approach
+                    if (this.wizardSelections.approach === 'simple') {
+                        this.goToWizardStep('simple-entities');
+                    } else {
+                        this.goToWizardStep('group-complete');
+                    }
+                    break;
+                case 'confirm':
+                    this.goToWizardStep('layout');
+                    break;
+                default:
+                    this.wizardStep--;
             }
         },
 
         async wizardNext() {
             const currentStep = this.wizardSteps[this.wizardStep];
 
-            if (this.wizardStep === this.wizardSteps.length - 1) {
-                // Final step - save labels and finish
-                await this.saveWizardLabels();
-                this.selectedEntities = [...this.wizardSelections.entities];
-                this.showWizard = false;
-                this.wizardComplete = true;
-                this.mode = 'freeform';
-                this.autoGroup();
+            switch (currentStep.id) {
+                case 'welcome':
+                    this.goToWizardStep('approach');
+                    break;
 
-                // Offer to generate profile
-                if (this.selectedEntities.length > 0) {
-                    this.showProfileNameModal = true;
-                }
-            } else {
-                // Auto-select all entities when moving to entities step if none selected
-                if (currentStep.id === 'domains' && this.wizardSelections.entities.length === 0) {
-                    // Pre-select commonly used domains if none selected
-                    if (this.wizardSelections.domains.length === 0) {
-                        const commonDomains = ['light', 'switch', 'climate', 'media_player', 'cover', 'fan', 'scene'];
-                        this.wizardSelections.domains = commonDomains.filter(d =>
-                            this.allEntities.some(e => e.domain === d)
-                        );
+                case 'approach':
+                    if (this.wizardSelections.approach === 'groups') {
+                        this.goToWizardStep('group-type');
+                    } else {
+                        this.goToWizardStep('simple-entities');
                     }
-                }
+                    break;
 
-                this.wizardStep++;
+                case 'group-type':
+                    if (this.wizardSelections.groupType === 'custom') {
+                        // Skip filter step for custom selection
+                        this.wizardSelections.groupFilter = null;
+                        this.wizardSelections.currentGroupName = '';
+                        this.goToWizardStep('group-entities');
+                    } else {
+                        this.goToWizardStep('group-filter');
+                    }
+                    break;
+
+                case 'group-filter':
+                    if (!this.wizardSelections.groupFilter) {
+                        alert('Please select an option');
+                        return;
+                    }
+                    this.goToWizardStep('group-entities');
+                    break;
+
+                case 'group-entities':
+                    if (this.wizardSelections.currentGroupEntities.length === 0) {
+                        alert('Please select at least one entity');
+                        return;
+                    }
+                    this.goToWizardStep('group-name');
+                    break;
+
+                case 'group-name':
+                    if (!this.wizardSelections.currentGroupName.trim()) {
+                        alert('Please enter a group name');
+                        return;
+                    }
+                    // Save the current group
+                    this.wizardSelections.groups.push({
+                        name: this.wizardSelections.currentGroupName.trim(),
+                        entities: [...this.wizardSelections.currentGroupEntities]
+                    });
+                    // Reset for next group
+                    this.wizardSelections.currentGroupEntities = [];
+                    this.wizardSelections.currentGroupName = '';
+                    this.wizardSelections.groupFilter = null;
+                    this.goToWizardStep('group-complete');
+                    break;
+
+                case 'group-complete':
+                    // This is handled by toggleWizardOption selecting 'another' or 'done'
+                    // We need to check what was last selected
+                    break;
+
+                case 'simple-entities':
+                    if (this.wizardSelections.simpleEntities.length === 0) {
+                        alert('Please select at least one entity');
+                        return;
+                    }
+                    this.goToWizardStep('layout');
+                    break;
+
+                case 'layout':
+                    this.goToWizardStep('confirm');
+                    break;
+
+                case 'confirm':
+                    // Final step - save and finish
+                    await this.finishWizard();
+                    break;
+
+                default:
+                    this.wizardStep++;
             }
         },
 
-        async saveWizardLabels() {
-            const grouping = this.wizardSelections.grouping;
-            const entities = this.wizardSelections.entities;
+        /**
+         * Handle group-complete step choices
+         */
+        handleGroupCompleteChoice(choice) {
+            if (choice === 'another') {
+                this.goToWizardStep('group-type');
+            } else {
+                this.goToWizardStep('layout');
+            }
+        },
 
-            // Build label assignments based on grouping choice
-            const labelAssignments = [];
+        async finishWizard() {
+            const { approach, groups, simpleEntities, layoutStyle } = this.wizardSelections;
 
-            for (const entityId of entities) {
-                const entity = this.getEntityById(entityId);
-                if (!entity) continue;
+            // Build groups for layout
+            let finalGroups = [];
 
-                let hierarchy;
-
-                switch (grouping) {
-                    case 'by-area':
-                        const areaName = this.getAreaName(entity.area_id) || 'unassigned';
-                        hierarchy = [this.slugify(areaName)];
-                        break;
-
-                    case 'by-domain':
-                        hierarchy = [entity.domain];
-                        break;
-
-                    case 'flat':
-                    default:
-                        hierarchy = ['main'];
-                        break;
+            if (approach === 'groups') {
+                // Use the groups that were created
+                finalGroups = groups.map(g => ({
+                    id: this.generateId(),
+                    name: g.name,
+                    type: layoutStyle === 'groups-as-pages' ? 'page' : 'folder',
+                    entities: g.entities,
+                    expanded: false
+                }));
+            } else {
+                // Simple flow - auto-group by area
+                const byArea = {};
+                for (const entityId of simpleEntities) {
+                    const entity = this.getEntityById(entityId);
+                    if (!entity) continue;
+                    const areaId = entity.area_id || '__unassigned__';
+                    if (!byArea[areaId]) {
+                        byArea[areaId] = [];
+                    }
+                    byArea[areaId].push(entityId);
                 }
 
-                const labelString = this.buildLabelString(hierarchy);
-                labelAssignments.push({
-                    entityId: entityId,
-                    label: labelString
-                });
+                for (const [areaId, entityIds] of Object.entries(byArea)) {
+                    const areaName = areaId === '__unassigned__'
+                        ? 'Other'
+                        : (this.getAreaName(areaId) || 'Unknown');
+                    finalGroups.push({
+                        id: this.generateId(),
+                        name: areaName,
+                        type: layoutStyle === 'groups-as-pages' ? 'page' : 'folder',
+                        entities: entityIds,
+                        expanded: false
+                    });
+                }
+            }
+
+            // Save labels to Home Assistant
+            await this.saveGroupLabels(finalGroups);
+
+            // Set up the layout editor state
+            this.groups = finalGroups;
+            this.selectedEntities = finalGroups.flatMap(g => g.entities);
+
+            // Close wizard and show layout
+            this.showWizard = false;
+            this.wizardComplete = true;
+            this.mode = 'freeform';
+            this.autoLayout();
+
+            // Offer to generate profile
+            if (this.selectedEntities.length > 0) {
+                this.showProfileNameModal = true;
+            }
+        },
+
+        async saveGroupLabels(groups) {
+            // Build label assignments from groups
+            const labelAssignments = [];
+
+            for (const group of groups) {
+                const groupSlug = this.slugify(group.name);
+                const labelString = this.buildLabelString([groupSlug]);
+
+                for (const entityId of group.entities) {
+                    labelAssignments.push({
+                        entityId: entityId,
+                        label: labelString
+                    });
+                }
             }
 
             // Create unique labels first
@@ -892,14 +1157,13 @@ function layoutEditor() {
                 this.createLabel(labelName);
             }
 
-            // Wait a moment for labels to be created, then assign
+            // Wait a moment for labels to be created
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Assign labels to entities
-            // Store the intended assignments for processing after labels are created
+            // Store assignments for processing
             this.pendingLabelAssignments = labelAssignments;
 
-            // Trigger assignment after a delay
+            // Trigger assignment after labels are created
             setTimeout(() => {
                 this.processPendingLabelAssignments();
             }, 1000);

@@ -335,18 +335,73 @@
                         <!-- Welcome Step -->
                         <template x-if="wizardSteps[wizardStep].id === 'welcome'">
                             <div class="wizard-welcome">
-                                <p>This wizard will help you:</p>
+                                <div class="wizard-important-note">
+                                    <strong>Important:</strong> Due to Stream Deck SDK limitations, this plugin generates profile files that you must import manually. Once imported, Deck Assistant cannot modify your Stream Deck layout directly.
+                                </div>
+
+                                <p class="wizard-section-header">How it works:</p>
+                                <ol class="wizard-steps-list">
+                                    <li><strong>Configure</strong> — Select your Home Assistant entities and organize them into groups</li>
+                                    <li><strong>Generate</strong> — Create a .streamDeckProfile file</li>
+                                    <li><strong>Import</strong> — Double-click the file to add it to Stream Deck</li>
+                                    <li><strong>Control</strong> — Buttons will communicate with Home Assistant in real-time</li>
+                                </ol>
+
+                                <p class="wizard-section-header">This wizard will help you:</p>
                                 <ul>
-                                    <li>Select which areas and devices to control</li>
-                                    <li>Organize them into groups</li>
-                                    <li>Save preferences to Home Assistant labels</li>
-                                    <li>Generate a Stream Deck profile</li>
+                                    <li>Select which areas/rooms to control</li>
+                                    <li>Choose device types (lights, switches, climate, etc.)</li>
+                                    <li>Pick specific entities</li>
+                                    <li>Organize them by room or device type</li>
                                 </ul>
-                                <p class="wizard-note">Your preferences are stored as labels in Home Assistant, so they persist across sessions.</p>
+
+                                <p class="wizard-note">Your selections are saved as labels in Home Assistant, so you can regenerate profiles anytime without reconfiguring.</p>
                             </div>
                         </template>
 
-                        <!-- Multi-select Steps (Areas, Domains, Entities) -->
+                        <!-- Choice Steps (approach, group-type, group-complete, layout) -->
+                        <template x-if="wizardSteps[wizardStep].type === 'choice' && wizardSteps[wizardStep].id !== 'group-complete'">
+                            <div class="wizard-options">
+                                <template x-for="option in getWizardOptions()" :key="option.id">
+                                    <div class="wizard-option wizard-option-large"
+                                         :class="{ selected: isWizardOptionSelected(option.id) }"
+                                         @click="toggleWizardOption(option.id)">
+                                        <input type="radio" :checked="isWizardOptionSelected(option.id)">
+                                        <div class="wizard-option-content">
+                                            <span class="wizard-option-name" x-text="option.name"></span>
+                                            <span class="wizard-option-description" x-text="option.description"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        <!-- Group Complete Step (special buttons) -->
+                        <template x-if="wizardSteps[wizardStep].id === 'group-complete'">
+                            <div class="wizard-group-complete">
+                                <div class="wizard-group-summary">
+                                    <p>You've created <strong x-text="wizardSelections.groups.length"></strong> group(s):</p>
+                                    <ul class="wizard-groups-list">
+                                        <template x-for="group in wizardSelections.groups" :key="group.name">
+                                            <li>
+                                                <strong x-text="group.name"></strong>
+                                                <span x-text="'(' + group.entities.length + ' entities)'"></span>
+                                            </li>
+                                        </template>
+                                    </ul>
+                                </div>
+                                <div class="wizard-group-actions">
+                                    <button class="btn btn-secondary btn-block" @click="handleGroupCompleteChoice('another')">
+                                        + Add Another Group
+                                    </button>
+                                    <button class="btn btn-primary btn-block" @click="handleGroupCompleteChoice('done')">
+                                        Done — Configure Layout
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Multi-select Steps (group-entities, simple-entities) -->
                         <template x-if="wizardSteps[wizardStep].type === 'multiselect'">
                             <div class="wizard-options wizard-scrollable">
                                 <template x-for="option in getWizardOptions()" :key="option.id">
@@ -363,20 +418,15 @@
                             </div>
                         </template>
 
-                        <!-- Choice Step (Grouping) -->
-                        <template x-if="wizardSteps[wizardStep].type === 'choice'">
-                            <div class="wizard-options">
-                                <template x-for="option in getWizardOptions()" :key="option.id">
-                                    <div class="wizard-option wizard-option-large"
-                                         :class="{ selected: isWizardOptionSelected(option.id) }"
-                                         @click="toggleWizardOption(option.id)">
-                                        <input type="radio" :checked="isWizardOptionSelected(option.id)" :name="'grouping'">
-                                        <div class="wizard-option-content">
-                                            <span class="wizard-option-name" x-text="option.name"></span>
-                                            <span class="wizard-option-description" x-text="option.description"></span>
-                                        </div>
-                                    </div>
-                                </template>
+                        <!-- Group Name Input Step -->
+                        <template x-if="wizardSteps[wizardStep].id === 'group-name'">
+                            <div class="wizard-input-step">
+                                <input type="text"
+                                       class="wizard-text-input"
+                                       placeholder="e.g., Living Room, All Lights, Favorites..."
+                                       x-model="wizardSelections.currentGroupName"
+                                       @keyup.enter="wizardNext()">
+                                <p class="wizard-note">This name will appear as a folder or page on your Stream Deck.</p>
                             </div>
                         </template>
 
@@ -385,43 +435,45 @@
                             <div class="wizard-confirm">
                                 <div class="wizard-summary">
                                     <div class="wizard-summary-item">
-                                        <span class="wizard-summary-label">Areas:</span>
-                                        <span class="wizard-summary-value" x-text="wizardSelections.areas.length || 'All'"></span>
+                                        <span class="wizard-summary-label">Approach:</span>
+                                        <span class="wizard-summary-value" x-text="wizardSelections.approach === 'groups' ? 'Custom Groups' : 'Quick Setup'"></span>
                                     </div>
                                     <div class="wizard-summary-item">
-                                        <span class="wizard-summary-label">Device Types:</span>
-                                        <span class="wizard-summary-value" x-text="wizardSelections.domains.length || 'All'"></span>
+                                        <span class="wizard-summary-label">Groups:</span>
+                                        <span class="wizard-summary-value" x-text="wizardSelections.approach === 'groups' ? wizardSelections.groups.length : 'Auto by Area'"></span>
                                     </div>
                                     <div class="wizard-summary-item">
-                                        <span class="wizard-summary-label">Entities:</span>
-                                        <span class="wizard-summary-value" x-text="wizardSelections.entities.length"></span>
+                                        <span class="wizard-summary-label">Total Entities:</span>
+                                        <span class="wizard-summary-value" x-text="wizardSelections.approach === 'groups' ? wizardSelections.groups.reduce((sum, g) => sum + g.entities.length, 0) : wizardSelections.simpleEntities.length"></span>
                                     </div>
                                     <div class="wizard-summary-item">
-                                        <span class="wizard-summary-label">Grouping:</span>
-                                        <span class="wizard-summary-value" x-text="wizardSelections.grouping === 'by-area' ? 'By Room' : wizardSelections.grouping === 'by-domain' ? 'By Type' : 'None'"></span>
+                                        <span class="wizard-summary-label">Layout:</span>
+                                        <span class="wizard-summary-value" x-text="wizardSelections.layoutStyle === 'groups-as-folders' ? 'Folders' : wizardSelections.layoutStyle === 'groups-as-pages' ? 'Pages' : 'Flat'"></span>
                                     </div>
                                 </div>
-                                <p class="wizard-note">Click "Finish" to save these labels to Home Assistant and generate your profile.</p>
+                                <p class="wizard-note">Click "Generate Profile" to save labels to Home Assistant and create your Stream Deck profile.</p>
                             </div>
                         </template>
 
                         <!-- Selection count for multi-select steps -->
                         <template x-if="wizardSteps[wizardStep].type === 'multiselect'">
                             <div class="wizard-selection-count">
-                                <span x-show="wizardSteps[wizardStep].id === 'areas'" x-text="`${wizardSelections.areas.length} areas selected`"></span>
-                                <span x-show="wizardSteps[wizardStep].id === 'domains'" x-text="`${wizardSelections.domains.length} types selected`"></span>
-                                <span x-show="wizardSteps[wizardStep].id === 'entities'" x-text="`${wizardSelections.entities.length} entities selected`"></span>
+                                <span x-show="wizardSteps[wizardStep].id === 'group-entities'" x-text="`${wizardSelections.currentGroupEntities.length} entities selected`"></span>
+                                <span x-show="wizardSteps[wizardStep].id === 'simple-entities'" x-text="`${wizardSelections.simpleEntities.length} entities selected`"></span>
                             </div>
                         </template>
 
-                        <div class="wizard-actions">
-                            <button class="btn btn-secondary" @click="wizardBack()">
-                                <span x-text="wizardStep === 0 ? 'Cancel' : 'Back'"></span>
-                            </button>
-                            <button class="btn btn-primary" @click="wizardNext()">
-                                <span x-text="wizardStep === wizardSteps.length - 1 ? 'Finish' : 'Next'"></span>
-                            </button>
-                        </div>
+                        <!-- Standard wizard actions (hidden on group-complete which has its own buttons) -->
+                        <template x-if="wizardSteps[wizardStep].id !== 'group-complete'">
+                            <div class="wizard-actions">
+                                <button class="btn btn-secondary" @click="wizardBack()">
+                                    <span x-text="wizardStep === 0 ? 'Cancel' : 'Back'"></span>
+                                </button>
+                                <button class="btn btn-primary" @click="wizardNext()">
+                                    <span x-text="wizardSteps[wizardStep].id === 'confirm' ? 'Generate Profile' : wizardSteps[wizardStep].id === 'group-name' ? 'Create Group' : 'Next'"></span>
+                                </button>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </div>
