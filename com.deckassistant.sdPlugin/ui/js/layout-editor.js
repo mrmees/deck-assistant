@@ -187,8 +187,8 @@ function layoutEditor() {
                 subtitle: 'Choose how to filter entities for this group.',
                 type: 'choice',
                 options: [
-                    { id: 'area', name: 'By Area/Room', description: 'Select all entities from a specific area' },
-                    { id: 'domain', name: 'By Device Type', description: 'Select all lights, switches, etc.' },
+                    { id: 'area', name: 'By Area/Room', description: 'Select entities from an area defined in Home Assistant' },
+                    { id: 'domain', name: 'By Device Type', description: 'Select entities by device type (lights, switches, etc.) as defined in Home Assistant' },
                     { id: 'custom', name: 'Custom Selection', description: 'Pick any entities you want, best for unorganized Home Assistant installations' }
                 ]
             },
