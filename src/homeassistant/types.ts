@@ -31,6 +31,15 @@ export interface HAEntityRegistryEntry {
   name?: string;
   icon?: string;
   platform: string;
+  labels?: string[];
+}
+
+export interface HALabel {
+  label_id: string;
+  name: string;
+  color?: string;
+  icon?: string;
+  description?: string;
 }
 
 export interface HAConfig {
