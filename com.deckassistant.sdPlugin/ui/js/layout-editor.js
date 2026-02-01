@@ -351,6 +351,7 @@ function styleEditor() {
             simpleEntities: [], // For simple flow
             simpleSort: 'area', // Sort order for simple flow
             ungroupedEntities: [], // Entities for main page (outside groups)
+            ungroupedPosition: null, // Position in sort order (null means "at end", number means position)
             flatLayoutStyle: 'continuous', // 'continuous' or 'per-line'
             layoutStyle: 'groups-as-folders' // 'groups-as-folders', 'groups-as-pages', 'flat' (legacy, may remove)
         },
@@ -1968,6 +1969,7 @@ function styleEditor() {
                         name: this.wizardSelections.currentGroupName.trim(),
                         entities: [...this.wizardSelections.currentGroupEntities],
                         displayType: 'folder', // Default to folder, user can change in group-layout step
+                        startNewRow: false, // Whether flat groups start on a new row
                         expanded: false // For Style Editor collapsible UI
                     });
                     // Reset for next group
